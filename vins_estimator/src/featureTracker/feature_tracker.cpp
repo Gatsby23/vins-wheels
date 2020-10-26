@@ -15,7 +15,7 @@ bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
     const int BORDER_SIZE = 1;
     int img_x = cvRound(pt.x);
-    int img_y = cvRound(pt.y);
+    int img_y = cvRound(pt.y);//返回四舍五入近似值
     return BORDER_SIZE <= img_x && img_x < col - BORDER_SIZE && BORDER_SIZE <= img_y && img_y < row - BORDER_SIZE;
 }
 
@@ -91,16 +91,22 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
+//输入的参数可以是两个图片或者一个图片 光流检测
 map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1)
 {
     TicToc t_r;
     cur_time = _cur_time;
-    cur_img = _img;
+    cur_img = _img;//当前图片
     row = cur_img.rows;
     col = cur_img.cols;
     cv::Mat rightImg = _img1;
+    // 先调用createCLAHE() 对图像进行自适应直方图均衡化(如果EQUALIZE=1，表示太亮或则太暗)
+    // 1.如果EQUALIZE=1，表示太亮或太暗，进行直方图均衡化处理
     /*
     {
+        //自适应直方图均衡
+        //createCLAHE(double clipLimit, Size tileGridSize)
+        //CLAHE 用来对图像进行灰度变换，以达到提高图像对比度的目的。
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
         clahe->apply(cur_img, cur_img);
         if(!rightImg.empty())
@@ -109,14 +115,15 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     */
     cur_pts.clear();
 
-    if (prev_pts.size() > 0)
+    if (prev_pts.size() > 0)// 前一帧有特征点
     {
         TicToc t_o;
         vector<uchar> status;
         vector<float> err;
-        if(hasPrediction)
+        if(hasPrediction)//执行向前和向后的光流以提高特征跟踪精度
         {
             cur_pts = predict_pts;
+            //光流法
             cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1, 
             cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
             
@@ -132,9 +139,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         else
             cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
         // reverse check
-        if(FLOW_BACK)
+        if(FLOW_BACK)//执行向前和向后的光流以提高特征跟踪精度
         {
-            vector<uchar> reverse_status;
+            vector<uchar> reverse_status;//反向计算一次光流
             vector<cv::Point2f> reverse_pts = prev_pts;
             cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1, 
             cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
@@ -150,9 +157,13 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             }
         }
         
-        for (int i = 0; i < int(cur_pts.size()); i++)
+        for (int i = 0; i < int(cur_pts.size()); i++)// 将当前帧跟踪的位于图像边界外的点标记为0
             if (status[i] && !inBorder(cur_pts[i]))
                 status[i] = 0;
+        // 4. 根据status,把跟踪失败的点剔除
+        //从当前帧数据prev_pts和cur_pts中剔除
+        //prev_pts和cur_pts中的特征点是一一对应的
+        //记录特征点id的ids，和记录特征点被跟踪次数的track_cnt也要剔除
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
         reduceVector(ids, status);
@@ -166,15 +177,15 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
 
     if (1)
     {
-        //rejectWithF();
+        //rejectWithF();//通过基本矩阵剔除outliers
         ROS_DEBUG("set mask begins");
         TicToc t_m;
-        setMask();
+        setMask();//7. setMask()保证相邻的特征点之间要相隔30个像素,设置mask
         ROS_DEBUG("set mask costs %fms", t_m.toc());
 
-        ROS_DEBUG("detect feature begins");
+        ROS_DEBUG("detect feature begins");// 8. 开始寻找新的特征点 goodFeaturesToTrack()
         TicToc t_t;
-        int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());
+        int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());//计算是否需要提取新的特征点
         if (n_max_cnt > 0)
         {
             if(mask.empty())
@@ -182,12 +193,25 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             if (mask.type() != CV_8UC1)
                 cout << "mask type wrong " << endl;
             cv::goodFeaturesToTrack(cur_img, n_pts, MAX_CNT - cur_pts.size(), 0.01, MIN_DIST, mask);
+         /**
+         *void cv::goodFeaturesToTrack(    在mask中不为0的区域检测新的特征点
+         *   InputArray  image,              输入图像
+         *   OutputArray     corners,        存放检测到的角点的vector
+         *   int     maxCorners,             返回的角点的数量的最大值
+         *   double  qualityLevel,           角点质量水平的最低阈值（范围为0到1，质量最高角点的水平为1），小于该阈值的角点被拒绝
+         *   double  minDistance,            返回角点之间欧式距离的最小值
+         *   InputArray  mask = noArray(),   和输入图像具有相同大小，类型必须为CV_8UC1,用来描述图像中感兴趣的区域，只在感兴趣区域中检测角点
+         *   int     blockSize = 3,          计算协方差矩阵时的窗口大小
+         *   bool    useHarrisDetector = false,  指示是否使用Harris角点检测，如不指定则使用shi-tomasi算法
+         *   double  k = 0.04                Harris角点检测需要的k值
+         *)
+         */
         }
         else
             n_pts.clear();
         ROS_DEBUG("detect feature costs: %f ms", t_t.toc());
 
-        for (auto &p : n_pts)
+        for (auto &p : n_pts)//addPoints()向cur_pts添加新的追踪点
         {
             cur_pts.push_back(p);
             ids.push_back(n_id++);
@@ -195,8 +219,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         }
         //printf("feature cnt after add %d\n", (int)ids.size());
     }
-
-    cur_un_pts = undistortedPts(cur_pts, m_camera[0]);
+                                                    //m_camera为相机畸变模型cam0/1_～～.yam
+    cur_un_pts = undistortedPts(cur_pts, m_camera[0]);// 11. 根据不同的相机模型去畸变矫正和转换到归一化坐标系上，计算速度
     pts_velocity = ptsVelocity(ids, cur_un_pts, cur_un_pts_map, prev_un_pts_map);
 
     if(!_img1.empty() && stereo_cam)
@@ -246,6 +270,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     if(SHOW_TRACK)
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
 
+    // 更新帧、特征点
+    //当下一帧图像到来时，当前帧数据就成为了上一帧发布的数据
     prev_img = cur_img;
     prev_pts = cur_pts;
     prev_un_pts = cur_un_pts;
@@ -395,7 +421,7 @@ vector<cv::Point2f> FeatureTracker::undistortedPts(vector<cv::Point2f> &pts, cam
     {
         Eigen::Vector2d a(pts[i].x, pts[i].y);
         Eigen::Vector3d b;
-        cam->liftProjective(a, b);
+        cam->liftProjective(a, b);//2d转3D，并且有去畸变的运算
         un_pts.push_back(cv::Point2f(b.x() / b.z(), b.y() / b.z()));
     }
     return un_pts;

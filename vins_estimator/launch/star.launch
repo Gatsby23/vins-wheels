@@ -1,0 +1,11 @@
+<launch>
+    <arg name="config_path" default = "$(find vins)/../config/kitti_odom/kitti_config00-02.yaml" />
+	<arg name="vins_path" default = "/media/qiaochunxiao/LENOVO/ALINUX/dataset/00" />
+    
+    <node name="vins_estimator" pkg="vins" type="kitti_odom_test" args="$(arg config_path) $(arg vins_path)" output="screen">
+    </node>
+
+    <!--<node name="loop_fusion" pkg="loop_fusion" type="loop_fusion_node" args="$(arg config_path)" output="screen">
+    </node>-->
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find vins)/../config/vins_rviz_config.rviz" />
+</launch>

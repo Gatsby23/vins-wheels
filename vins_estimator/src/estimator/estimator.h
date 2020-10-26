@@ -110,7 +110,7 @@ class Estimator
     MarginalizationFlag  marginalization_flag;
     Vector3d g;
 
-    Matrix3d ric[2];
+    Matrix3d ric[2];//imu和相机之间的外参R，以imu为参考
     Vector3d tic[2];
 
     Vector3d        Ps[(WINDOW_SIZE + 1)];

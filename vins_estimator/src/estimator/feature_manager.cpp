@@ -222,7 +222,7 @@ bool FeatureManager::solvePoseByPnP(Eigen::Matrix3d &R, Eigen::Vector3d &P,
     R_initial = R.inverse();
     P_initial = -(R_initial * P);
 
-    //printf("pnp size %d \n",(int)pts2D.size() );
+    printf("pnp size %d \n",(int)pts2D.size() );
     if (int(pts2D.size()) < 4)
     {
         printf("feature tracking not enough, please slowly move you device! \n");

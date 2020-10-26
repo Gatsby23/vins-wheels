@@ -21,13 +21,13 @@
 #include "estimator/parameters.h"
 #include "utility/visualization.h"
 
-Estimator estimator;
+Estimator estimator;//估计器
 
-queue<sensor_msgs::ImuConstPtr> imu_buf;
+queue<sensor_msgs::ImuConstPtr> imu_buf;//队列
 queue<sensor_msgs::PointCloudConstPtr> feature_buf;
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
-std::mutex m_buf;
+std::mutex m_buf;//互斥锁
 
 
 void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
@@ -58,7 +58,7 @@ cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
         img.step = img_msg->step;
         img.data = img_msg->data;
         img.encoding = "mono8";
-        ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+        ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);//tocvcopy复制从ROS消息的图像数据，可以自由修改返回的cvimage,与tocvshare不同
     }
     else
         ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
@@ -67,12 +67,12 @@ cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
     return img;
 }
 
-// extract images with same timestamp from two topics
+// extract images with same timestamp from two topics从两个队列中提取具有相同时间戳的图像
 void sync_process()
 {
     while(1)
     {
-        if(STEREO)
+        if(STEREO)//立体
         {
             cv::Mat image0, image1;
             std_msgs::Header header;
@@ -82,7 +82,7 @@ void sync_process()
             {
                 double time0 = img0_buf.front()->header.stamp.toSec();
                 double time1 = img1_buf.front()->header.stamp.toSec();
-                // 0.003s sync tolerance
+                // 0.003s sync tolerance 同步容差
                 if(time0 < time1 - 0.003)
                 {
                     img0_buf.pop();
@@ -101,7 +101,7 @@ void sync_process()
                     img0_buf.pop();
                     image1 = getImageFromMsg(img1_buf.front());
                     img1_buf.pop();
-                    //printf("find img0 and img1\n");
+                    printf("find img0 and img1\n");
                 }
             }
             m_buf.unlock();
@@ -126,8 +126,8 @@ void sync_process()
                 estimator.inputImage(time, image);
         }
 
-        std::chrono::milliseconds dura(2);
-        std::this_thread::sleep_for(dura);
+        std::chrono::milliseconds dura(2);//2ms
+        std::this_thread::sleep_for(dura);//表示当前线程休眠一段时间
     }
 }
 
@@ -147,7 +147,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     return;
 }
 
-
+//特征
 void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 {
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "vins_estimator");
     ros::NodeHandle n("~");
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
-
+//上面Debug，是ros默认设置的消息日志级别，默认有Debug,Info,Warn,Error,Fatal(首字母大写)
     if(argc != 2)
     {
         printf("please intput: rosrun vins vins_node [config file] \n"
@@ -257,7 +257,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_imu_switch = n.subscribe("/vins_imu_switch", 100, imu_switch_callback);
     ros::Subscriber sub_cam_switch = n.subscribe("/vins_cam_switch", 100, cam_switch_callback);
 
-    std::thread sync_thread{sync_process};
+    std::thread sync_thread{sync_process};//声明一个线程，sync_thread是std：：thread对象名，sync_process为其初始函数
     ros::spin();
 
     return 0;
