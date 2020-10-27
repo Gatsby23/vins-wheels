@@ -154,6 +154,46 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
     {
         clearState();
         setParameter();
+
+    }
+    mProcess.unlock();
+}
+
+void Estimator::changeSensorType(int use_imu, int use_stereo)
+{
+    bool restart = false;
+    mProcess.lock();
+    if(!use_imu && !use_stereo)
+        printf("at least use two sensors! \n");
+    else
+    {
+        if(USE_IMU != use_imu)
+        {
+            USE_IMU = use_imu;
+            if(USE_IMU)
+            {
+                // reuse imu; restart system
+                restart = true;
+            }
+            else
+            {
+                if (last_marginalization_info != nullptr)
+                    delete last_marginalization_info;
+
+                tmp_pre_integration = nullptr;
+                last_marginalization_info = nullptr;
+                last_marginalization_parameter_blocks.clear();
+            }
+        }
+        
+        STEREO = use_stereo;
+        printf("use imu %d use stereo %d\n", USE_IMU, STEREO);
+    }
+    mProcess.unlock();
+    if(restart)
+    {
+        clearState();
+        setParameter();
     }
 }
 //time img0,img1
@@ -167,7 +207,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         featureFrame = featureTracker.trackImage(t, _img);
     else
         featureFrame = featureTracker.trackImage(t, _img, _img1);
-//    printf("featureTracker time: %f\n", featureTrackerTime.toc());
+    //printf("featureTracker time: %f\n", featureTrackerTime.toc());
 
     if (SHOW_TRACK)
     {

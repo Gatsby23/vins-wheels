@@ -9,6 +9,7 @@ image0_topic: "/leftImage"
 image1_topic: "/rightImage"
 output_path: "/home/qiao/ROBOT/pose_graph/"
 
+
 cam0_calib: "cam00-02.yaml"
 cam1_calib: "cam00-02.yaml"
 image_width: 1241
