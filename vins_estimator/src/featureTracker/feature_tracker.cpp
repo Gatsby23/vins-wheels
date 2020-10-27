@@ -210,7 +210,6 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         else
             n_pts.clear();
         ROS_DEBUG("detect feature costs: %f ms", t_t.toc());
-
         for (auto &p : n_pts)//addPoints()向cur_pts添加新的追踪点
         {
             cur_pts.push_back(p);
