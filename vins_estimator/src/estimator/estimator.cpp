@@ -7,7 +7,7 @@
  * you may not use this file except in compliance with the License.
  *******************************************************/
 
-#include "estimator.h"
+#include "estimator.h"//估计器
 #include "../utility/visualization.h"
 
 Estimator::Estimator(): f_manager{Rs}
@@ -99,7 +99,7 @@ void Estimator::setParameter()
     {
         tic[i] = TIC[i];
         ric[i] = RIC[i];
-        cout << " exitrinsic cam " << i << endl  << ric[i] << endl << tic[i].transpose() << endl;
+        cout << " exitrinsic cam " << i << endl  <<"ric"<<endl <<ric[i] << endl <<"tic"<<endl<< tic[i].transpose() << endl;
     }
     f_manager.setRic(ric);
     ProjectionTwoFrameOneCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
@@ -154,14 +154,54 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
     {
         clearState();
         setParameter();
+
     }
+    mProcess.unlock();
 }
 
+void Estimator::changeSensorType(int use_imu, int use_stereo)
+{
+    bool restart = false;
+    mProcess.lock();
+    if(!use_imu && !use_stereo)
+        printf("at least use two sensors! \n");
+    else
+    {
+        if(USE_IMU != use_imu)
+        {
+            USE_IMU = use_imu;
+            if(USE_IMU)
+            {
+                // reuse imu; restart system
+                restart = true;
+            }
+            else
+            {
+                if (last_marginalization_info != nullptr)
+                    delete last_marginalization_info;
+
+                tmp_pre_integration = nullptr;
+                last_marginalization_info = nullptr;
+                last_marginalization_parameter_blocks.clear();
+            }
+        }
+        
+        STEREO = use_stereo;
+        printf("use imu %d use stereo %d\n", USE_IMU, STEREO);
+    }
+    mProcess.unlock();
+    if(restart)
+    {
+        clearState();
+        setParameter();
+    }
+}
+//time img0,img1
 void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
 {
     inputImageCnt++;
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
-    TicToc featureTrackerTime;
+    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;//map是键-值对的集合，可以理解为关联数组 pair是将2个数据组合成一组数据
+    TicToc featureTrackerTime;//时间
 
     if(_img1.empty())
         featureFrame = featureTracker.trackImage(t, _img);
@@ -191,7 +231,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         mBuf.unlock();
         TicToc processTime;
         processMeasurements();
-        printf("process time: %f\n", processTime.toc());
+        printf("process time_change: %f\n", processTime.toc());
     }
     
 }

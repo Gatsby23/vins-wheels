@@ -270,17 +270,17 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
 bool KeyFrame::findConnection(KeyFrame* old_kf)
 {
 	TicToc tmp_t;
-	//printf("find Connection\n");
+	printf("find Connection\n");
 	vector<cv::Point2f> matched_2d_cur, matched_2d_old;
 	vector<cv::Point2f> matched_2d_cur_norm, matched_2d_old_norm;
 	vector<cv::Point3f> matched_3d;
 	vector<double> matched_id;
 	vector<uchar> status;
 
-	matched_3d = point_3d;
-	matched_2d_cur = point_2d_uv;
-	matched_2d_cur_norm = point_2d_norm;
-	matched_id = point_id;
+	matched_3d = point_3d;//当前帧 特征点容器 源于new keyframe
+	matched_2d_cur = point_2d_uv;//当前帧 去畸变后的归一化坐标
+	matched_2d_cur_norm = point_2d_norm;//当前帧 特征点的图像坐标
+	matched_id = point_id;//特征点的编号
 
 	TicToc t_match;
 	#if 0
@@ -309,6 +309,8 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    }
 	#endif
 	//printf("search by des\n");
+	//需要注意的是FAST点和第一类点是通过不同方式检测出来的点，它们往往是不重合的。所以searchByBRIEFDes的时候效果应该不会特别好吧。如果想优化这部分的，可以在这方面动动脑筋。
+	//使用了 当前帧的window_brief_descriptors和过去帧的特征
 	searchByBRIEFDes(matched_2d_old, matched_2d_old_norm, status, old_kf->brief_descriptors, old_kf->keypoints, old_kf->keypoints_norm);
 	reduceVector(matched_2d_cur, status);
 	reduceVector(matched_2d_old, status);
@@ -414,7 +416,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	Eigen::Vector3d relative_t;
 	Quaterniond relative_q;
 	double relative_yaw;
-	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
+	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)//MIN_LOOP_NUM 25
 	{
 		status.clear();
 	    PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old);

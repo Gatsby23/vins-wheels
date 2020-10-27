@@ -1,0 +1,5 @@
+<launch>
+    <arg name="config_path" default = "$(find vins)/../config/kitti_odom/kitti_config00-02.yaml" />
+    <node name="loop_fusion" pkg="loop_fusion" type="loop_fusion_node" args="$(arg config_path)" output="screen">
+    </node>
+</launch>

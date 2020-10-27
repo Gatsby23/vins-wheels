@@ -290,12 +290,12 @@ void process()
             //printf(" point time %f \n", point_msg->header.stamp.toSec());
             //printf(" image time %f \n", image_msg->header.stamp.toSec());
             // skip fisrt few
-            if (skip_first_cnt < SKIP_FIRST_CNT)
+            if (skip_first_cnt < SKIP_FIRST_CNT)//剔除最开始的SKIP_FIRST_CNT帧
             {
                 skip_first_cnt++;
                 continue;
             }
-
+            //每隔SKIP_CNT帧进行一次  SKIP_CNT=0
             if (skip_cnt < SKIP_CNT)
             {
                 skip_cnt++;
@@ -331,6 +331,7 @@ void process()
                                      pose_msg->pose.pose.orientation.x,
                                      pose_msg->pose.pose.orientation.y,
                                      pose_msg->pose.pose.orientation.z).toRotationMatrix();
+            //将距上一关键帧距离（平移向量的模）超过SKIP_DIS的图像创建为关键帧
             if((T - last_t).norm() > SKIP_DIS)
             {
                 vector<cv::Point3f> point_3d; 
@@ -348,23 +349,26 @@ void process()
 
                     cv::Point2f p_2d_uv, p_2d_normal;
                     double p_id;
-                    p_2d_normal.x = point_msg->channels[i].values[0];
+                    p_2d_normal.x = point_msg->channels[i].values[0];//去畸变后的归一化坐标
                     p_2d_normal.y = point_msg->channels[i].values[1];
-                    p_2d_uv.x = point_msg->channels[i].values[2];
+                    p_2d_uv.x = point_msg->channels[i].values[2];//特征点的图像坐标
                     p_2d_uv.y = point_msg->channels[i].values[3];
                     p_id = point_msg->channels[i].values[4];
                     point_2d_normal.push_back(p_2d_normal);
                     point_2d_uv.push_back(p_2d_uv);
                     point_id.push_back(p_id);
 
-                    //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
+                    //printf("p_2d_normal x %f, y %f \n", p_2d_normal.x, p_2d_normal.y);
+                    //printf("p_2d_uv u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
+//                    printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
+
                 }
 
                 KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
-                                   point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   
+                                   point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   //应该是生成fast特征点了，用于DBW2中的query
                 m_process.lock();
                 start_flag = 1;
-                posegraph.addKeyFrame(keyframe, 1);
+                posegraph.addKeyFrame(keyframe, 1);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
                 m_process.unlock();
                 frame_index++;
                 last_t = T;
@@ -397,6 +401,10 @@ void command()
     }
 }
 
+
+//闭环检测中每一个关键帧有两类特征点：
+//goodFeatureToTrack检测到的点及光流track到的点，这些点在FeatureTracker类中得到
+//        KeyFrame类中提取的FAST特征点
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "loop_fusion");

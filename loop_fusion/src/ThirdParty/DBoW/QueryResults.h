@@ -163,7 +163,7 @@ public:
   friend std::ostream & operator<<(std::ostream& os, const Result& ret );
 };
 
-/// Multiple results from a query
+/// Multiple results from a query  继承了Result类
 class QueryResults: public std::vector<Result>
 {
 public:
@@ -179,7 +179,7 @@ public:
    * @param os ostream
    * @param ret QueryResults to print
    */
-  friend std::ostream & operator<<(std::ostream& os, const QueryResults& ret );
+  friend std::ostream & operator<<(std::ostream& os, const QueryResults& ret );//rec[0] [1]等里面的内容
   
   /**
    * Saves a matlab file with the results 

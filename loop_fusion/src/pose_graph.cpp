@@ -70,18 +70,18 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     //shift to base frame
     Vector3d vio_P_cur;
     Matrix3d vio_R_cur;
-    if (sequence_cnt != cur_kf->sequence)
+    if (sequence_cnt != cur_kf->sequence)//如果sequence_cnt != cur_kf->sequence，则新建一个新的图像序列;
     {
         sequence_cnt++;
         sequence_loop.push_back(0);
-        w_t_vio = Eigen::Vector3d(0, 0, 0);
+        w_t_vio = Eigen::Vector3d(0, 0, 0);// w_t_vio,w_r_vio描述的就是当前序列的第一帧，与世界坐标系之间的转换关系。
         w_r_vio = Eigen::Matrix3d::Identity();
         m_drift.lock();
         t_drift = Eigen::Vector3d(0, 0, 0);
         r_drift = Eigen::Matrix3d::Identity();
         m_drift.unlock();
     }
-    
+    //获取当前帧的位姿vio_P_cur、vio_R_cur并更新
     cur_kf->getVioPose(vio_P_cur, vio_R_cur);
     vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
     vio_R_cur = w_r_vio *  vio_R_cur;
@@ -92,20 +92,24 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     if (flag_detect_loop)
     {
         TicToc tmp_t;
+        //回环检测，返回回环候选帧的索引
         loop_index = detectLoop(cur_kf, cur_kf->index);
     }
     else
     {
         addKeyFrameIntoVoc(cur_kf);
     }
+    //得到匹配上关键帧后，经过计算相对位姿，并把当前帧号记录到全局优化内
+    //如果存在回环候选帧，将当前帧与回环帧进行描述子匹配并计算位姿，并执行优化
 	if (loop_index != -1)
 	{
-        //printf(" %d detect loop with %d \n", cur_kf->index, loop_index);
-        KeyFrame* old_kf = getKeyFrame(loop_index);
-
-        if (cur_kf->findConnection(old_kf))
+        printf(" %d detect loop with %d \n", cur_kf->index, loop_index);
+        KeyFrame* old_kf = getKeyFrame(loop_index);//返回对应关键帧的地址,//获取回环候选帧
+        // findConnection 是为了计算相对位姿，最主要的就是利用了PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old)函数，
+        //并且它负责把匹配好的点发送到estimator节点中去
+        if (cur_kf->findConnection(old_kf))////当前帧与回环候选帧进行描述子匹配  来确定是否是一个真正的闭环
         {
-            if (earliest_loop_index > loop_index || earliest_loop_index == -1)
+            if (earliest_loop_index > loop_index || earliest_loop_index == -1)//earliest_loop_index为最早的回环候选帧
                 earliest_loop_index = loop_index;
 
             Vector3d w_P_old, w_P_cur, vio_P_cur;
@@ -113,15 +117,23 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             old_kf->getVioPose(w_P_old, w_R_old);
             cur_kf->getVioPose(vio_P_cur, vio_R_cur);
 
+            ////获取当前帧与回环帧的相对位姿relative_q、relative_t
             Vector3d relative_t;
             Quaterniond relative_q;
             relative_t = cur_kf->getLoopRelativeT();
             relative_q = (cur_kf->getLoopRelativeQ()).toRotationMatrix();
+
+            //重新计算当前帧位姿w_P_cur、w_R_cur
             w_P_cur = w_R_old * relative_t + w_P_old;
             w_R_cur = w_R_old * relative_q;
+
+            //回环得到的位姿和VIO位姿之间的偏移量shift_r、shift_t
             double shift_yaw;
             Matrix3d shift_r;
-            Vector3d shift_t; 
+            Vector3d shift_t;
+            // 根据old frame 和相对位姿能计算出当前帧位姿，也就能得出和已知当前帧位姿的差别
+            //分别计算出shift_r, shift_t，用来更新其他帧位姿
+
             if(use_imu)
             {
                 shift_yaw = Utility::R2ypr(w_R_cur).x() - Utility::R2ypr(vio_R_cur).x();
@@ -130,7 +142,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             else
                 shift_r = w_R_cur * vio_R_cur.transpose();
             shift_t = w_P_cur - w_R_cur * vio_R_cur.transpose() * vio_P_cur; 
-            // shift vio pose of whole sequence to the world frame
+            // shift vio pose of whole sequence to the world frame将整个序列的vio姿势转移到世界坐标系
             if (old_kf->sequence != cur_kf->sequence && sequence_loop[cur_kf->sequence] == 0)
             {  
                 w_r_vio = shift_r;
@@ -153,6 +165,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
                 }
                 sequence_loop[cur_kf->sequence] = 1;
             }
+            //将当前帧放入优化队列中
             m_optimize_buf.lock();
             optimize_buf.push(cur_kf->index);
             m_optimize_buf.unlock();
@@ -161,10 +174,13 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
 	m_keyframelist.lock();
     Vector3d P;
     Matrix3d R;
-    cur_kf->getVioPose(P, R);
+
+    cur_kf->getVioPose(P, R);    //获取VIO当前帧的位姿P、R，根据偏移量得到实际位姿
     P = r_drift * P + t_drift;
     R = r_drift * R;
-    cur_kf->updatePose(P, R);
+    cur_kf->updatePose(P, R);//更新当前帧的位姿P、R
+
+    //发布path[sequence_cnt]
     Quaterniond Q{R};
     geometry_msgs::PoseStamped pose_stamped;
     pose_stamped.header.stamp = ros::Time(cur_kf->time_stamp);
@@ -179,6 +195,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
+    //保存闭环轨迹到VINS_RESULT_PATH
     if (SAVE_LOOP_PATH)
     {
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
@@ -214,6 +231,8 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             rit++;
         }
     }
+
+    //当前帧与其回环帧连线
     if (SHOW_L_EDGE)
     {
         if (cur_kf->has_loop)
@@ -234,7 +253,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         }
     }
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
-
+    //发送path主题数据，用以显示
 	keyframelist.push_back(cur_kf);
     publish();
 	m_keyframelist.unlock();
@@ -332,27 +351,28 @@ KeyFrame* PoseGraph::getKeyFrame(int index)
         return NULL;
 }
 
-int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
+int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)//输入关键帧和关键帧的索引
 {
-    // put image into image_pool; for visualization
+    // put image into image_pool; for visualization将图像放入图像池；以便可视化
     cv::Mat compressed_image;
-    if (DEBUG_IMAGE)
+    if (DEBUG_IMAGE)//如果在调试状态DEBUG_IMAGE 就是1在config文件里写入
     {
         int feature_num = keyframe->keypoints.size();
         cv::resize(keyframe->image, compressed_image, cv::Size(376, 240));
-        putText(compressed_image, "feature_num:" + to_string(feature_num), cv::Point2f(10, 10), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255));
-        image_pool[frame_index] = compressed_image;
+        putText(compressed_image, "feature_num:" + to_string(feature_num), cv::Point2f(10, 10), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0));
+        image_pool[frame_index] = compressed_image;//放入图像池
     }
     TicToc tmp_t;
-    //first query; then add this frame into database!
-    QueryResults ret;
+    //first query; then add this frame into database! //首先查询；然后将此坐标系添加到数据库中！
+    QueryResults ret;//    查询的多个结果
     TicToc t_query;
+    //第一个参数是描述子，第二个是检测结果，第三个是结果个数，第四个是结果帧号必须小于此  ret=1 result:<EntryId: 18, Score: 0.113851>
     db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
-    //printf("query time: %f", t_query.toc());
-    //cout << "Searching for Image " << frame_index << ". " << ret << endl;
+    printf("query time: %f\n", t_query.toc());//输出查询的时间
+    cout << "  Searching for Image " << frame_index << ". " << ret << endl;
 
     TicToc t_add;
-    db.add(keyframe->brief_descriptors);
+    db.add(keyframe->brief_descriptors);//属于namespace DBoW2
     //printf("add feature time: %f", t_add.toc());
     // ret[0] is the nearest neighbour's score. threshold change with neighour score
     bool find_loop = false;
@@ -361,7 +381,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     {
         loop_result = compressed_image.clone();
         if (ret.size() > 0)
-            putText(loop_result, "neighbour score:" + to_string(ret[0].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+            putText(loop_result, "neighbour score:" + to_string(ret[0].Score) + "  index:"+to_string(frame_index), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0));
     }
     // visual loop result 
     if (DEBUG_IMAGE)
@@ -371,11 +391,11 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
             int tmp_index = ret[i].Id;
             auto it = image_pool.find(tmp_index);
             cv::Mat tmp_image = (it->second).clone();
-            putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+            putText(tmp_image, "index:  " + to_string(tmp_index) + "   loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0));
             cv::hconcat(loop_result, tmp_image, loop_result);
         }
     }
-    // a good match with its nerghbour
+    // a good match with its nerghbour    //找到最小帧号的匹配帧
     if (ret.size() >= 1 &&ret[0].Score > 0.05)
         for (unsigned int i = 1; i < ret.size(); i++)
         {
@@ -384,23 +404,23 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
             {          
                 find_loop = true;
                 int tmp_index = ret[i].Id;
-                if (DEBUG_IMAGE && 0)
+                if (DEBUG_IMAGE && 1)
                 {
                     auto it = image_pool.find(tmp_index);
                     cv::Mat tmp_image = (it->second).clone();
-                    putText(tmp_image, "loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255));
-                    cv::hconcat(loop_result, tmp_image, loop_result);
+                    putText(tmp_image, "loop score:" + to_string(ret[i].Score)+"   index:"+to_string(tmp_index), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0));
+                    cv::hconcat(loop_result, tmp_image, loop_result);//简单的拼接
                 }
             }
 
         }
-/*
+/**/
     if (DEBUG_IMAGE)
     {
         cv::imshow("loop_result", loop_result);
         cv::waitKey(20);
     }
-*/
+/**/
     if (find_loop && frame_index > 50)
     {
         int min_index = -1;
@@ -586,9 +606,178 @@ void PoseGraph::optimize4DoF()
             r_drift = Utility::ypr2R(Vector3d(yaw_drift, 0, 0));
             t_drift = cur_t - r_drift * vio_t;
             m_drift.unlock();
-            //cout << "t_drift " << t_drift.transpose() << endl;
-            //cout << "r_drift " << Utility::R2ypr(r_drift).transpose() << endl;
-            //cout << "yaw drift " << yaw_drift << endl;
+            // cout << "t_drift " << t_drift.transpose() << endl;
+            // cout << "r_drift " << Utility::R2ypr(r_drift).transpose() << endl;
+            // cout << "yaw drift " << yaw_drift << endl;
+
+            it++;
+            for (; it != keyframelist.end(); it++)
+            {
+                Vector3d P;
+                Matrix3d R;
+                (*it)->getVioPose(P, R);
+                P = r_drift * P + t_drift;
+                R = r_drift * R;
+                (*it)->updatePose(P, R);
+            }
+            m_keyframelist.unlock();
+            updatePath();
+        }
+
+        std::chrono::milliseconds dura(2000);
+        std::this_thread::sleep_for(dura);
+    }
+    return;
+}
+
+
+void PoseGraph::optimize6DoF()
+{
+    while(true)
+    {
+        int cur_index = -1;
+        int first_looped_index = -1;
+        m_optimize_buf.lock();
+        while(!optimize_buf.empty())
+        {
+            cur_index = optimize_buf.front();
+            first_looped_index = earliest_loop_index;
+            optimize_buf.pop();
+        }
+        m_optimize_buf.unlock();
+        if (cur_index != -1)
+        {
+            printf("optimize pose graph \n");
+            TicToc tmp_t;
+            m_keyframelist.lock();
+            KeyFrame* cur_kf = getKeyFrame(cur_index);
+
+            int max_length = cur_index + 1;
+
+            // w^t_i   w^q_i
+            double t_array[max_length][3];
+            double q_array[max_length][4];
+            double sequence_array[max_length];
+
+            ceres::Problem problem;
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+            //ptions.minimizer_progress_to_stdout = true;
+            //options.max_solver_time_in_seconds = SOLVER_TIME * 3;
+            options.max_num_iterations = 5;
+            ceres::Solver::Summary summary;
+            ceres::LossFunction *loss_function;
+            loss_function = new ceres::HuberLoss(0.1);
+            //loss_function = new ceres::CauchyLoss(1.0);
+            ceres::LocalParameterization* local_parameterization = new ceres::QuaternionParameterization();
+
+            list<KeyFrame*>::iterator it;
+
+            int i = 0;
+            for (it = keyframelist.begin(); it != keyframelist.end(); it++)
+            {
+                if ((*it)->index < first_looped_index)
+                    continue;
+                (*it)->local_index = i;
+                Quaterniond tmp_q;
+                Matrix3d tmp_r;
+                Vector3d tmp_t;
+                (*it)->getVioPose(tmp_t, tmp_r);
+                tmp_q = tmp_r;
+                t_array[i][0] = tmp_t(0);
+                t_array[i][1] = tmp_t(1);
+                t_array[i][2] = tmp_t(2);
+                q_array[i][0] = tmp_q.w();
+                q_array[i][1] = tmp_q.x();
+                q_array[i][2] = tmp_q.y();
+                q_array[i][3] = tmp_q.z();
+
+                sequence_array[i] = (*it)->sequence;
+
+                problem.AddParameterBlock(q_array[i], 4, local_parameterization);
+                problem.AddParameterBlock(t_array[i], 3);
+
+                if ((*it)->index == first_looped_index || (*it)->sequence == 0)
+                {   
+                    problem.SetParameterBlockConstant(q_array[i]);
+                    problem.SetParameterBlockConstant(t_array[i]);
+                }
+
+                //add edge
+                for (int j = 1; j < 5; j++)
+                {
+                    if (i - j >= 0 && sequence_array[i] == sequence_array[i-j])
+                    {
+                        Vector3d relative_t(t_array[i][0] - t_array[i-j][0], t_array[i][1] - t_array[i-j][1], t_array[i][2] - t_array[i-j][2]);
+                        Quaterniond q_i_j = Quaterniond(q_array[i-j][0], q_array[i-j][1], q_array[i-j][2], q_array[i-j][3]);
+                        Quaterniond q_i = Quaterniond(q_array[i][0], q_array[i][1], q_array[i][2], q_array[i][3]);
+                        relative_t = q_i_j.inverse() * relative_t;
+                        Quaterniond relative_q = q_i_j.inverse() * q_i;
+                        ceres::CostFunction* vo_function = RelativeRTError::Create(relative_t.x(), relative_t.y(), relative_t.z(),
+                                                                                relative_q.w(), relative_q.x(), relative_q.y(), relative_q.z(),
+                                                                                0.1, 0.01);
+                        problem.AddResidualBlock(vo_function, NULL, q_array[i-j], t_array[i-j], q_array[i], t_array[i]);
+                    }
+                }
+
+                //add loop edge
+                
+                if((*it)->has_loop)
+                {
+                    assert((*it)->loop_index >= first_looped_index);
+                    int connected_index = getKeyFrame((*it)->loop_index)->local_index;
+                    Vector3d relative_t;
+                    relative_t = (*it)->getLoopRelativeT();
+                    Quaterniond relative_q;
+                    relative_q = (*it)->getLoopRelativeQ();
+                    ceres::CostFunction* loop_function = RelativeRTError::Create(relative_t.x(), relative_t.y(), relative_t.z(),
+                                                                                relative_q.w(), relative_q.x(), relative_q.y(), relative_q.z(),
+                                                                                0.1, 0.01);
+                    problem.AddResidualBlock(loop_function, loss_function, q_array[connected_index], t_array[connected_index], q_array[i], t_array[i]);                    
+                }
+                
+                if ((*it)->index == cur_index)
+                    break;
+                i++;
+            }
+            m_keyframelist.unlock();
+
+            ceres::Solve(options, &problem, &summary);
+            //std::cout << summary.BriefReport() << "\n";
+            
+            //printf("pose optimization time: %f \n", tmp_t.toc());
+            /*
+            for (int j = 0 ; j < i; j++)
+            {
+                printf("optimize i: %d p: %f, %f, %f\n", j, t_array[j][0], t_array[j][1], t_array[j][2] );
+            }
+            */
+            m_keyframelist.lock();
+            i = 0;
+            for (it = keyframelist.begin(); it != keyframelist.end(); it++)
+            {
+                if ((*it)->index < first_looped_index)
+                    continue;
+                Quaterniond tmp_q(q_array[i][0], q_array[i][1], q_array[i][2], q_array[i][3]);
+                Vector3d tmp_t = Vector3d(t_array[i][0], t_array[i][1], t_array[i][2]);
+                Matrix3d tmp_r = tmp_q.toRotationMatrix();
+                (*it)-> updatePose(tmp_t, tmp_r);
+
+                if ((*it)->index == cur_index)
+                    break;
+                i++;
+            }
+
+            Vector3d cur_t, vio_t;
+            Matrix3d cur_r, vio_r;
+            cur_kf->getPose(cur_t, cur_r);
+            cur_kf->getVioPose(vio_t, vio_r);
+            m_drift.lock();
+            r_drift = cur_r * vio_r.transpose();
+            t_drift = cur_t - r_drift * vio_t;
+            m_drift.unlock();
+            cout << "t_drift " << t_drift.transpose() << endl;
+            cout << "r_drift " << Utility::R2ypr(r_drift).transpose() << endl;
 
             it++;
             for (; it != keyframelist.end(); it++)
@@ -1077,11 +1266,11 @@ void PoseGraph::publish()
         //if (sequence_loop[i] == true || i == base_sequence)
         if (1 || i == base_sequence)
         {
-            pub_pg_path.publish(path[i]);
-            pub_path[i].publish(path[i]);
-            posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
+            pub_pg_path.publish(path[i]);//"pose_graph_path"
+            pub_path[i].publish(path[i]);//"path_" + to_string(i)
+            posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);//"pose_graph"
         }
     }
-    pub_base_path.publish(base_path);
+    pub_base_path.publish(base_path);//"base_path"
     //posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
 }
