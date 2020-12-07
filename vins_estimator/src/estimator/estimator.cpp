@@ -161,6 +161,10 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
 //time img0,img1
 void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
 {
+    for(auto &pos:Ps)
+    {
+        cout<<"PS\n"<<pos<<endl;
+    }
     inputImageCnt++;
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;//map是键-值对的集合，可以理解为关联数组 pair是将2个数据组合成一组数据
     TicToc featureTrackerTime;//时间
@@ -189,10 +193,11 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     else
     {
         mBuf.lock();
-        featureBuf.push(make_pair(t, featureFrame));
+        featureBuf.push(make_pair(t, featureFrame));//push入featureBuf队列 这个队列的成员对象一直是一个  t是时间戳，featureframe是特征点数据组
         mBuf.unlock();
+        //cout<<"size featureBuf"<<featureBuf.size()<<endl;
         TicToc processTime;
-        processMeasurements();
+        processMeasurements();//重要，应该是计算位姿的
         printf("process time_change: %f\n", processTime.toc());
     }
     
@@ -280,7 +285,7 @@ void Estimator::processMeasurements()
         {
             feature = featureBuf.front();
             curTime = feature.first + td;
-            while(1)
+            while(1)//等待IMU
             {
                 if ((!USE_IMU  || IMUAvailable(feature.first + td)))
                     break;
@@ -317,10 +322,10 @@ void Estimator::processMeasurements()
                 }
             }
             mProcess.lock();
-            processImage(feature.second, feature.first);
+            processImage(feature.second, feature.first);//重要 处理图像
             prevTime = curTime;
 
-            printStatistics(*this, 0);
+            printStatistics(*this, 0);//打印统计信息
 
             std_msgs::Header header;
             header.frame_id = "world";
@@ -412,29 +417,38 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
 
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header)
 {
+    //image的数据类型分别表示feature_id,camera_id,点的x,y,z坐标，u,v坐标，在x,y方向上的跟踪速度
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
-    if (f_manager.addFeatureCheckParallax(frame_count, image, td))
+    //为了保证系统的实时性和准确性，需要对当前帧之前某一部分帧进行优化，而不是全部历史帧，优化帧的个数便是滑动窗口的大小。
+    //不难理解，为了维持窗口大小，要去除旧的帧添加新的帧，即边缘化 Marginalization。到底是删去最旧的帧（MARGIN_OLD）还是
+    //删去刚刚进来窗口倒数第二帧(MARGIN_SECOND_NEW)，就需要对 当前帧与之前帧 进行视差比较，如果是当前帧变化很小，就会删
+    //去倒数第二帧，如果变化很大，就删去最旧的帧 --- 理解一下这个意思！
+    //检查视差代码[1]根据视差来决定marg掉哪一帧，如果次新帧是关键帧，marg（边缘化）掉最老帧，如果次新帧不是关键帧,marg掉次新帧
+    if (f_manager.addFeatureCheckParallax(frame_count, image, td))//关键帧计数器 关键帧特征点 td常为0
     {
-        marginalization_flag = MARGIN_OLD;
-        //printf("keyframe\n");
+        marginalization_flag = MARGIN_OLD;//边缘化标志
+        printf("keyframe\n");
+        cout<<"frame_count "<<frame_count<<" td "<<td<<endl;
     }
     else
     {
         marginalization_flag = MARGIN_SECOND_NEW;
-        //printf("non-keyframe\n");
+        printf("non-keyframe\n");
     }
 
     ROS_DEBUG("%s", marginalization_flag ? "Non-keyframe" : "Keyframe");
     ROS_DEBUG("Solving %d", frame_count);
-    ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
+    ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());//计算滑窗内被track过的特征点的数量
     Headers[frame_count] = header;
 
+    //【2】将图像数据、时间、临时预积分值存储到图像帧类中,ImageFrame这个类的定义在initial_alignment.h中
     ImageFrame imageframe(image, header);
     imageframe.pre_integration = tmp_pre_integration;
     all_image_frame.insert(make_pair(header, imageframe));
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
+    //[3]如果ESTIMATE_EXTRINSIC == 2表示需要在线估计imu和camera之间的外参数
     if(ESTIMATE_EXTRINSIC == 2)
     {
         ROS_INFO("calibrating extrinsic param, rotation movement is needed");
@@ -453,6 +467,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         }
     }
 
+    //[4]判断是初始化还是非线性优化
     if (solver_flag == INITIAL)
     {
         // monocular + IMU initilization
@@ -510,17 +525,20 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         // stereo only initilization
         if(STEREO && !USE_IMU)
         {
-            f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);
-            f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
-            optimization();
+
+            f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//tic[0]左相机T tic[1] 右相机T ric[0]左相机R ric[1]右相机R//在这里改变了Ps和Rs
+            f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//双目三角化三维坐标
+
+            optimization();//非线性最小二乘优化重投影误差
 
             if(frame_count == WINDOW_SIZE)
             {
                 optimization();
                 updateLatestStates();
-                solver_flag = NON_LINEAR;
+                solver_flag = NON_LINEAR;//初始化完毕，程序正常运行
                 slideWindow();
                 ROS_INFO("Initialization finish!");
+                std::cout<<"Initialization finish!"<<std::endl;
             }
         }
 
@@ -536,13 +554,13 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         }
 
     }
-    else
+    else//非线性优化
     {
         TicToc t_solve;
         if(!USE_IMU)
-            f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);
-        f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
-        optimization();
+            f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//pnp求位姿
+        f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化
+        optimization();//优化
         set<int> removeIndex;
         outliersRejection(removeIndex);
         f_manager.removeOutlier(removeIndex);
@@ -552,7 +570,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             predictPtsInNextFrame();
         }
             
-        ROS_DEBUG("solver costs: %fms", t_solve.toc());
+        ROS_DEBUG("solver costs: %fms", t_solve.toc()); //异常检测与恢复, 检测到异常，系统将切换回初始化阶段
 
         if (failureDetection())
         {
@@ -564,7 +582,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             return;
         }
 
-        slideWindow();
+        slideWindow();//滑窗
         f_manager.removeFailures();
         // prepare output of VINS
         key_poses.clear();
@@ -1008,12 +1026,15 @@ void Estimator::optimization()
     TicToc t_whole, t_prepare;
     vector2double();
 
-    ceres::Problem problem;
+    //初始化ceres
+    ceres::Problem problem;//创建一个ceres Problem实例, loss_function定义为CauchyLoss.
     ceres::LossFunction *loss_function;
     //loss_function = NULL;
     loss_function = new ceres::HuberLoss(1.0);
     //loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
     //ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+
+    //加入优化变量  位姿 速度
     for (int i = 0; i < frame_count + 1; i++)
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
@@ -1024,6 +1045,7 @@ void Estimator::optimization()
     if(!USE_IMU)
         problem.SetParameterBlockConstant(para_Pose[0]);
 
+    //加入相机外参
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();

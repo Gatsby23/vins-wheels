@@ -229,6 +229,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 
 }
 
+////订阅主节点发布的相机和IMU位姿变换 imu和相机之间的外参R，以imu为参考
 void extrinsic_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 {
     m_process.lock();
@@ -240,6 +241,7 @@ void extrinsic_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
                       pose_msg->pose.pose.orientation.y,
                       pose_msg->pose.pose.orientation.z).toRotationMatrix();
     m_process.unlock();
+    //std::cout<<"callback tic="<<tic<<"  qic="<<qic<<std::endl;
 }
 
 void process()
@@ -468,7 +470,7 @@ int main(int argc, char **argv)
     fout.close();
 
     int USE_IMU = fsSettings["imu"];
-    posegraph.setIMUFlag(USE_IMU);
+    posegraph.setIMUFlag(USE_IMU);//在这里又启动了一个线程
     fsSettings.release();
 
     if (LOAD_PREVIOUS_POSE_GRAPH)

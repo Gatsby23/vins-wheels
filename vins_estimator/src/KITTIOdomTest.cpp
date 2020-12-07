@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 			pubRightImage.publish(imRightMsg);
 
 
-			estimator.inputImage(imageTimeList[i], imLeft, imRight);
+			estimator.inputImage(imageTimeList[i], imLeft, imRight);//时间戳 左目 右目
 			
 			Eigen::Matrix<double, 4, 4> pose;
 			estimator.getPoseInWorldFrame(pose);

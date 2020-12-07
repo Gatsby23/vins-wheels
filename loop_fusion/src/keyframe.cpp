@@ -12,7 +12,7 @@
 #include "keyframe.h"
 
 template <typename Derived>
-static void reduceVector(vector<Derived> &v, vector<uchar> status)
+static void reduceVector(vector<Derived> &v, vector<uchar> status)//重新调整向量大小
 {
     int j = 0;
     for (int i = 0; i < int(v.size()); i++)
@@ -221,7 +221,7 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
     Matrix3d R_inital;
     Vector3d P_inital;
     Matrix3d R_w_c = origin_vio_R * qic;
-    Vector3d T_w_c = origin_vio_T + origin_vio_R * tic;
+    Vector3d T_w_c = origin_vio_T + origin_vio_R * tic;//tic以imu为参考的相机外参T
 
     R_inital = R_w_c.inverse();
     P_inital = -(R_inital * T_w_c);
@@ -261,9 +261,9 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
     cv::cv2eigen(t, T_pnp);
     T_w_c_old = R_w_c_old * (-T_pnp);
 
-    PnP_R_old = R_w_c_old * qic.transpose();
-    PnP_T_old = T_w_c_old - PnP_R_old * tic;
-
+    PnP_R_old = R_w_c_old * qic.transpose();//以imu为参考的相机外参q qic=1 0 0    0 1 0    0 0 1
+    PnP_T_old = T_w_c_old - PnP_R_old * tic;//以imu为参考的相机外参T tic=0 0 0
+    std::cout<<"qic="<<qic.transpose()<<"  tic="<<tic<<std::endl;
 }
 
 
@@ -312,7 +312,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	//需要注意的是FAST点和第一类点是通过不同方式检测出来的点，它们往往是不重合的。所以searchByBRIEFDes的时候效果应该不会特别好吧。如果想优化这部分的，可以在这方面动动脑筋。
 	//使用了 当前帧的window_brief_descriptors和过去帧的特征
 	searchByBRIEFDes(matched_2d_old, matched_2d_old_norm, status, old_kf->brief_descriptors, old_kf->keypoints, old_kf->keypoints_norm);
-	reduceVector(matched_2d_cur, status);
+	reduceVector(matched_2d_cur, status);//重新调整大小
 	reduceVector(matched_2d_old, status);
 	reduceVector(matched_2d_cur_norm, status);
 	reduceVector(matched_2d_old_norm, status);
@@ -419,8 +419,8 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)//MIN_LOOP_NUM 25
 	{
 		status.clear();
-	    PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old);
-	    reduceVector(matched_2d_cur, status);
+	    PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old);//调用OPENCV的pnp求解,给到PnP_T_old, PnP_R_old
+	    reduceVector(matched_2d_cur, status);//重新调整向量大小，因此后面如果做判断 >MIN_LOOP_NUM，那么还要再做一次判断
 	    reduceVector(matched_2d_old, status);
 	    reduceVector(matched_2d_cur_norm, status);
 	    reduceVector(matched_2d_old_norm, status);
@@ -439,6 +439,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	            for(int i = 0; i< (int)matched_2d_cur.size(); i++)
 	            {
 	                cv::Point2f cur_pt = matched_2d_cur[i];
+                    //cv.circle(img,(520,430),300,(255,0,0),8)在img原始图片中划圈，其圈的中心点为（520，430），半径=300，颜色为（255，0，0），粗细=8
 	                cv::circle(loop_match_img, cur_pt, 5, cv::Scalar(0, 255, 0));
 	            }
 	            for(int i = 0; i< (int)matched_2d_old.size(); i++)
@@ -454,24 +455,24 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	                cv::line(loop_match_img, matched_2d_cur[i], old_pt, cv::Scalar(0, 255, 0), 2, 8, 0);
 	            }
 	            cv::Mat notation(50, COL + gap + COL, CV_8UC3, cv::Scalar(255, 255, 255));
-	            putText(notation, "current frame: " + to_string(index) + "  sequence: " + to_string(sequence), cv::Point2f(20, 30), CV_FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255), 3);
+	            putText(notation, "current frame: " + to_string(index) + "  sequence: " + to_string(sequence)+" matched.size"+to_string((int)matched_2d_cur.size()), cv::Point2f(20, 30), CV_FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255), 3);
 
 	            putText(notation, "previous frame: " + to_string(old_kf->index) + "  sequence: " + to_string(old_kf->sequence), cv::Point2f(20 + COL + gap, 30), CV_FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255), 3);
-	            cv::vconcat(notation, loop_match_img, loop_match_img);
+	            cv::vconcat(notation, loop_match_img, loop_match_img);//vconcat（B,C，A）上下拼接; // 等同于A=[B ;C] ，hconcat左右拼接
 
-	            /*
+                /*
 	            ostringstream path;
-	            path <<  "/home/tony-ws1/raw_data/loop_image/"
+	            path <<  "/home/qiaochunxiao/ROBOT/m_robot/src/VINS/data/"
 	                    << index << "-"
 	                    << old_kf->index << "-" << "3pnp_match.jpg";
 	            cv::imwrite( path.str().c_str(), loop_match_img);
-	            */
+                */
 	            if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
 	            {
-	            	/*
+
 	            	cv::imshow("loop connection",loop_match_img);  
 	            	cv::waitKey(10);  
-	            	*/
+
 	            	cv::Mat thumbimage;
 	            	cv::resize(loop_match_img, thumbimage, cv::Size(loop_match_img.cols / 2, loop_match_img.rows / 2));
 	    	    	sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", thumbimage).toImageMsg();
@@ -482,9 +483,9 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    #endif
 	}
 
-	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
+	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)//MIN_LOOP_NUM 25
 	{
-	    relative_t = PnP_R_old.transpose() * (origin_vio_T - PnP_T_old);
+	    relative_t = PnP_R_old.transpose() * (origin_vio_T - PnP_T_old);//计算相关性
 	    relative_q = PnP_R_old.transpose() * origin_vio_R;
 	    relative_yaw = Utility::normalizeAngle(Utility::R2ypr(origin_vio_R).x() - Utility::R2ypr(PnP_R_old).x());
 	    //printf("PNP relative\n");

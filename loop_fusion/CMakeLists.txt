@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5.1)
+cmake_minimum_required(VERSION 3.0.2)
 project(loop_fusion)
 
 set(CMAKE_BUILD_TYPE "Release")

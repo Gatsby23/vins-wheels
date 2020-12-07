@@ -140,14 +140,14 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
                 shift_r = Utility::ypr2R(Vector3d(shift_yaw, 0, 0));
             }
             else
-                shift_r = w_R_cur * vio_R_cur.transpose();
+                shift_r = w_R_cur * vio_R_cur.transpose();//旋转矩阵的转置等于逆
             shift_t = w_P_cur - w_R_cur * vio_R_cur.transpose() * vio_P_cur; 
             // shift vio pose of whole sequence to the world frame将整个序列的vio姿势转移到世界坐标系
-            if (old_kf->sequence != cur_kf->sequence && sequence_loop[cur_kf->sequence] == 0)
+            if (old_kf->sequence != cur_kf->sequence && sequence_loop[cur_kf->sequence] == 0)//正常回环检测不执行这个
             {  
                 w_r_vio = shift_r;
                 w_t_vio = shift_t;
-                vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
+                vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;//这里是不是多了？
                 vio_R_cur = w_r_vio *  vio_R_cur;
                 cur_kf->updateVioPose(vio_P_cur, vio_R_cur);
                 list<KeyFrame*>::iterator it = keyframelist.begin();
@@ -167,7 +167,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             }
             //将当前帧放入优化队列中
             m_optimize_buf.lock();
-            optimize_buf.push(cur_kf->index);
+            optimize_buf.push(cur_kf->index);//push后，optimize6DoF 6自由度位姿变换线程开始执行优化的程序
             m_optimize_buf.unlock();
         }
 	}
@@ -175,10 +175,11 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     Vector3d P;
     Matrix3d R;
 
-    cur_kf->getVioPose(P, R);    //获取VIO当前帧的位姿P、R，根据偏移量得到实际位姿
-    P = r_drift * P + t_drift;
+    cur_kf->getVioPose(P, R); //获取VIO当前帧的位姿P、R，根据偏移量得到实际位姿
+    P = r_drift * P + t_drift;//在optimize6DoF线程中进行了赋值
     R = r_drift * R;
-    cur_kf->updatePose(P, R);//更新当前帧的位姿P、R
+    std::cout<<"r_drift="<<r_drift<<"  t_drift="<<t_drift<<std::endl;
+    cur_kf->updatePose(P, R);//更新当前帧的位姿P、R到T_w_i R_w_i
 
     //发布path[sequence_cnt]
     Quaterniond Q{R};
@@ -359,8 +360,8 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)//输入关键帧�
     {
         int feature_num = keyframe->keypoints.size();
         cv::resize(keyframe->image, compressed_image, cv::Size(376, 240));
-        putText(compressed_image, "feature_num:" + to_string(feature_num), cv::Point2f(10, 10), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0));
-        image_pool[frame_index] = compressed_image;//放入图像池
+        //putText(compressed_image, "feature_num:" + to_string(feature_num), cv::Point2f(10, 10), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0));
+        image_pool[frame_index] = compressed_image;//放入图像池 写完字放入图像池？
     }
     TicToc tmp_t;
     //first query; then add this frame into database! //首先查询；然后将此坐标系添加到数据库中！
@@ -381,17 +382,26 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)//输入关键帧�
     {
         loop_result = compressed_image.clone();
         if (ret.size() > 0)
-            putText(loop_result, "neighbour score:" + to_string(ret[0].Score) + "  index:"+to_string(frame_index), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0));
+        {
+            int gap = 10;
+            cv::Mat notation(50, loop_result.cols, CV_8UC1, cv::Scalar(255));
+            putText(notation, "neighbour score:" + to_string(ret[0].Score) + "  index:"+to_string(frame_index), cv::Point2f(10, 20), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0));
+            cv::vconcat(notation,loop_result, loop_result);
+        }
+
     }
     // visual loop result 
     if (DEBUG_IMAGE)
     {
         for (unsigned int i = 0; i < ret.size(); i++)
         {
+            int gap = 10;
             int tmp_index = ret[i].Id;
             auto it = image_pool.find(tmp_index);
             cv::Mat tmp_image = (it->second).clone();
-            putText(tmp_image, "index:  " + to_string(tmp_index) + "   loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0));
+            cv::Mat notation(50, tmp_image.cols, CV_8UC1, cv::Scalar(255));
+            putText(notation, "index:  " + to_string(tmp_index) + "   loop score:" + to_string(ret[i].Score), cv::Point2f(10, 30), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0));
+            cv::vconcat(notation,tmp_image, tmp_image);
             cv::hconcat(loop_result, tmp_image, loop_result);
         }
     }
@@ -406,9 +416,13 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)//输入关键帧�
                 int tmp_index = ret[i].Id;
                 if (DEBUG_IMAGE && 1)
                 {
+                    int gap = 10;
                     auto it = image_pool.find(tmp_index);
                     cv::Mat tmp_image = (it->second).clone();
-                    putText(tmp_image, "loop score:" + to_string(ret[i].Score)+"   index:"+to_string(tmp_index), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0));
+                    cv::Mat notation(50, tmp_image.cols, CV_8UC1, cv::Scalar(255));
+                    putText(notation, "loop score: " + to_string(ret[i].Score) + "   index:"+to_string(tmp_index), cv::Point2f(10, 30), CV_FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255), 3);
+                    //putText(tmp_image, "loop score:" + to_string(ret[i].Score)+"   index:"+to_string(tmp_index), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0));
+                    cv::vconcat(notation,tmp_image, tmp_image);
                     cv::hconcat(loop_result, tmp_image, loop_result);//简单的拼接
                 }
             }
@@ -674,7 +688,7 @@ void PoseGraph::optimize6DoF()
             list<KeyFrame*>::iterator it;
 
             int i = 0;
-            for (it = keyframelist.begin(); it != keyframelist.end(); it++)
+            for (it = keyframelist.begin(); it != keyframelist.end(); it++)//一次遍历所有帧获取回环起始后的所有帧位姿
             {
                 if ((*it)->index < first_looped_index)
                     continue;
@@ -694,7 +708,7 @@ void PoseGraph::optimize6DoF()
 
                 sequence_array[i] = (*it)->sequence;
 
-                problem.AddParameterBlock(q_array[i], 4, local_parameterization);
+                problem.AddParameterBlock(q_array[i], 4, local_parameterization);//帧位姿优化
                 problem.AddParameterBlock(t_array[i], 3);
 
                 if ((*it)->index == first_looped_index || (*it)->sequence == 0)
@@ -770,17 +784,17 @@ void PoseGraph::optimize6DoF()
 
             Vector3d cur_t, vio_t;
             Matrix3d cur_r, vio_r;
-            cur_kf->getPose(cur_t, cur_r);
-            cur_kf->getVioPose(vio_t, vio_r);
+            cur_kf->getPose(cur_t, cur_r);//获取世界系下坐标
+            cur_kf->getVioPose(vio_t, vio_r);//获取VIO坐标
             m_drift.lock();
-            r_drift = cur_r * vio_r.transpose();
+            r_drift = cur_r * vio_r.transpose();//在process线程里面的子函数用到了
             t_drift = cur_t - r_drift * vio_t;
             m_drift.unlock();
             cout << "t_drift " << t_drift.transpose() << endl;
             cout << "r_drift " << Utility::R2ypr(r_drift).transpose() << endl;
 
             it++;
-            for (; it != keyframelist.end(); it++)
+            for (; it != keyframelist.end(); it++)//将所有位姿改一遍
             {
                 Vector3d P;
                 Matrix3d R;
@@ -790,7 +804,7 @@ void PoseGraph::optimize6DoF()
                 (*it)->updatePose(P, R);
             }
             m_keyframelist.unlock();
-            updatePath();
+            updatePath();//更新ROSmsg的path
         }
 
         std::chrono::milliseconds dura(2000);

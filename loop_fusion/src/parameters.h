@@ -22,7 +22,7 @@
 #include <cv_bridge/cv_bridge.h>
 
 extern camodocal::CameraPtr m_camera;
-extern Eigen::Vector3d tic;
+extern Eigen::Vector3d tic;//以imu为参考的相机外参T
 extern Eigen::Matrix3d qic;
 extern ros::Publisher pub_match_img;
 extern int VISUALIZATION_SHIFT_X;

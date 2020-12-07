@@ -48,41 +48,45 @@ int FeatureManager::getFeatureCount()
     return cnt;
 }
 
-
+//关键帧的帧号，const map<特征点的id pair<相机的id ，特征点相关数据>>,td:(初始化时间偏移量图像时间戳和imu时间戳对齐作用 ，常为0)
 bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, double td)
 {
     ROS_DEBUG("input feature: %d", (int)image.size());
     ROS_DEBUG("num of feature: %d", getFeatureCount());
-    double parallax_sum = 0;
-    int parallax_num = 0;
-    last_track_num = 0;
+    double parallax_sum = 0;//    //所有特征点视差总和
+    int parallax_num = 0;    // 满足某些条件的特征点个数
+    last_track_num = 0;    //被跟踪点的个数
     last_average_parallax = 0;
     new_feature_num = 0;
     long_track_num = 0;
     for (auto &id_pts : image)
     {
-        FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
-        assert(id_pts.second[0].first == 0);
-        if(id_pts.second.size() == 2)
+        FeaturePerFrame f_per_fra(id_pts.second[0].second, td);//每一帧的特征点        //特征点管理器，存储特征点格式：首先按照特征点ID，一个一个存储，每个ID会包含其在不同帧上的位置
+        assert(id_pts.second[0].first == 0);//如果相机的id不为0就判断出错
+        if(id_pts.second.size() == 2)//判断是否有右目
         {
-            f_per_fra.rightObservation(id_pts.second[1].second);
+            f_per_fra.rightObservation(id_pts.second[1].second);//右目每一帧的特征点
             assert(id_pts.second[1].first == 1);
         }
 
-        int feature_id = id_pts.first;
-        auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
+        int feature_id = id_pts.first;//特征点的序号
+        // 找有没有相同ID特征点
+        auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)       // find_if 函数，找到一个interator使第三个仿函数参数为真
                           {
             return it.feature_id == feature_id;
                           });
 
         if (it == feature.end())
         {
-            feature.push_back(FeaturePerId(feature_id, frame_count));
+            //如果没有找到此ID，就在管理器中增加此特征点 先存入id等
+            feature.push_back(FeaturePerId(feature_id, frame_count));//输入特征点序号 关键帧序号 默认used_num(0), estimated_depth(-1.0), solve_flag(0)
+            //在 feature的最后一个数据组中的feature_per_frame（与上一步的id对应）压入特征点数据。
             feature.back().feature_per_frame.push_back(f_per_fra);
             new_feature_num++;
         }
         else if (it->feature_id == feature_id)
         {
+            //如果找到了相同ID特征点，就在其FeaturePerFrame内增加此特征点在此帧的位置以及其他信息，然后增加last_track_num，说明此帧有多少个相同特征点被跟踪到
             it->feature_per_frame.push_back(f_per_fra);
             last_track_num++;
             if( it-> feature_per_frame.size() >= 4)
@@ -97,6 +101,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
 
     for (auto &it_per_id : feature)
     {
+        //计算能被当前帧和其前两帧共同看到的特征点视差
         if (it_per_id.start_frame <= frame_count - 2 &&
             it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)
         {
@@ -194,12 +199,12 @@ VectorXd FeatureManager::getDepthVector()
     return dep_vec;
 }
 
-
+//svd分解 Ax=0
 void FeatureManager::triangulatePoint(Eigen::Matrix<double, 3, 4> &Pose0, Eigen::Matrix<double, 3, 4> &Pose1,
                         Eigen::Vector2d &point0, Eigen::Vector2d &point1, Eigen::Vector3d &point_3d)
 {
     Eigen::Matrix4d design_matrix = Eigen::Matrix4d::Zero();
-    design_matrix.row(0) = point0[0] * Pose0.row(2) - Pose0.row(0);
+    design_matrix.row(0) = point0[0] * Pose0.row(2) - Pose0.row(0);//Ax=0拆开了把A拆开了
     design_matrix.row(1) = point0[1] * Pose0.row(2) - Pose0.row(1);
     design_matrix.row(2) = point1[0] * Pose1.row(2) - Pose1.row(0);
     design_matrix.row(3) = point1[1] * Pose1.row(2) - Pose1.row(1);
@@ -232,7 +237,7 @@ bool FeatureManager::solvePoseByPnP(Eigen::Matrix3d &R, Eigen::Vector3d &P,
     cv::eigen2cv(R_initial, tmp_r);
     cv::Rodrigues(tmp_r, rvec);
     cv::eigen2cv(P_initial, t);
-    cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);  
+    cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);  //因为此时的二维点已经是归一化坐标了，不必使用相机内参，因此使用单位矩阵
     bool pnp_succ;
     pnp_succ = cv::solvePnP(pts3D, pts2D, K, D, rvec, t, 1);
     //pnp_succ = solvePnPRansac(pts3D, pts2D, K, D, rvec, t, true, 100, 8.0 / focalLength, 0.99, inliers);
@@ -242,10 +247,11 @@ bool FeatureManager::solvePoseByPnP(Eigen::Matrix3d &R, Eigen::Vector3d &P,
         printf("pnp failed ! \n");
         return false;
     }
-    cv::Rodrigues(rvec, r);
-    //cout << "r " << endl << r << endl;
+    cv::Rodrigues(rvec, r);//罗德里格斯（Rodrigues）变换,因为r为旋转向量形式，转换为矩阵
+    cout << "r " << endl << r << endl;
     Eigen::MatrixXd R_pnp;
     cv::cv2eigen(r, R_pnp);
+    cout << "R_pnp " << endl << R_pnp << endl;
     Eigen::MatrixXd T_pnp;
     cv::cv2eigen(t, T_pnp);
 
@@ -258,25 +264,36 @@ bool FeatureManager::solvePoseByPnP(Eigen::Matrix3d &R, Eigen::Vector3d &P,
 
 void FeatureManager::initFramePoseByPnP(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vector3d tic[], Matrix3d ric[])
 {
-
-    if(frameCnt > 0)
+    //使用上一帧的位姿下的三维点，和当前帧的二维点做pnp  start_frame0从0开始到上一帧的三维点，index从当前帧到1帧的二维点
+    if(frameCnt > 0)//在初始化第0帧图像时，因深度信息匮乏pnp不执行，先执行三角化求深度。
     {
         vector<cv::Point2f> pts2D;
         vector<cv::Point3f> pts3D;
-        for (auto &it_per_id : feature)
+        for (auto &it_per_id : feature)//list<FeaturePerId> feature 链表循环;
         {
             if (it_per_id.estimated_depth > 0)
             {
-                int index = frameCnt - it_per_id.start_frame;
+                int index = frameCnt - it_per_id.start_frame;//从当前帧向旧帧循环  eg：index=5 、4、 3、 2、 1在链表的大循环里面挑不同index的数据
+
+                //如果特征点队列里的feature_per_frame.size()大于等于index+1，代表着队列里每一帧都有该特征点所以从最远的那一帧计算
+                //比如特征点队列里feature_per_frame.size()=10，当前帧的序号为9，10大于等于9+1
+                //比如整个比如特征点队列里feature_per_frame大小为6，队列里的start_frame为3，frameCnt=12，则index=9，那么这时候判断中间有几帧没有该特征点，不用这个。
+                //比如整个比如特征点队列里feature_per_frame大小为5，队列里的start_frame为8，frameCnt=12，则index=4,5>>=4+1，判断此时是后面连续的几帧有该特征点，使用该特征点
+                //一定是会有些特征点不会存在所有队列中的，尤其是后面的新的特征点，基本上就只是上一帧和当前帧有。
+                //一直循环到上一帧和当前帧 index会变化但是这个一直指向当前帧的数据
                 if((int)it_per_id.feature_per_frame.size() >= index + 1)
                 {
-                    Vector3d ptsInCam = ric[0] * (it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth) + tic[0];
-                    Vector3d ptsInWorld = Rs[it_per_id.start_frame] * ptsInCam + Ps[it_per_id.start_frame];
+                    Vector3d ptsInCam = ric[0] * (it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth) + tic[0];//ric[0]是单位向量，tic[0]是0向量
+                    Vector3d ptsInWorld = Rs[it_per_id.start_frame] * ptsInCam + Ps[it_per_id.start_frame];//start_frame从队列最小的帧号开始
+                    cout<<"start_frame"<<it_per_id.start_frame<<"  Ps_fram\n"<<Ps[it_per_id.start_frame]<<endl;
+                    //cout<<"ric[0]="<<ric[0]<<"  tic[0]="<<tic[0]<<endl;
+                    //cout<<"ptsInCam="<<ptsInCam<<"\nptsInWorld="<<ptsInWorld<<endl;
 
                     cv::Point3f point3d(ptsInWorld.x(), ptsInWorld.y(), ptsInWorld.z());
                     cv::Point2f point2d(it_per_id.feature_per_frame[index].point.x(), it_per_id.feature_per_frame[index].point.y());
                     pts3D.push_back(point3d);
-                    pts2D.push_back(point2d); 
+                    pts2D.push_back(point2d);
+                    cout<<"index="<<index<<"   feature_id"<<it_per_id.feature_id<<endl;
                 }
             }
         }
@@ -301,43 +318,54 @@ void FeatureManager::initFramePoseByPnP(int frameCnt, Vector3d Ps[], Matrix3d Rs
 
 void FeatureManager::triangulate(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vector3d tic[], Matrix3d ric[])
 {
-    for (auto &it_per_id : feature)
+    int i=0;
+    for (auto &it_per_id : feature)//feature list<FeaturePerId>
     {
+        //i++;cout<<"i="<<i<<endl;
         if (it_per_id.estimated_depth > 0)
             continue;
 
         if(STEREO && it_per_id.feature_per_frame[0].is_stereo)
         {
+            //cout<<"size="<<it_per_id.feature_per_frame.size()<<"  isstereo="<<it_per_id.feature_per_frame[0].is_stereo<<endl;
             int imu_i = it_per_id.start_frame;
             Eigen::Matrix<double, 3, 4> leftPose;
-            Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
-            Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];
-            leftPose.leftCols<3>() = R0.transpose();
+            Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];//利用imu的位姿计算左相机位姿t
+            Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];//利用imu的位姿计算左相机位姿r
+            leftPose.leftCols<3>() = R0.transpose();//左边三列
             leftPose.rightCols<1>() = -R0.transpose() * t0;
-            //cout << "left pose " << leftPose << endl;
+//            cout << "left pose \n" << leftPose << "\n"<<"  row(2)=\n"<<leftPose.row(2)<<endl;
 
             Eigen::Matrix<double, 3, 4> rightPose;
-            Eigen::Vector3d t1 = Ps[imu_i] + Rs[imu_i] * tic[1];
-            Eigen::Matrix3d R1 = Rs[imu_i] * ric[1];
+            Eigen::Vector3d t1 = Ps[imu_i] + Rs[imu_i] * tic[1];//利用imu的位姿计算右相机位姿
+            Eigen::Matrix3d R1 = Rs[imu_i] * ric[1];//利用imu的位姿计算右相机位姿
             rightPose.leftCols<3>() = R1.transpose();
             rightPose.rightCols<1>() = -R1.transpose() * t1;
-            //cout << "right pose " << rightPose << endl;
+            //cout << "right pose \n" << rightPose << endl;
 
             Eigen::Vector2d point0, point1;
-            Eigen::Vector3d point3d;
+            Eigen::Vector3d point3d ;
             point0 = it_per_id.feature_per_frame[0].point.head(2);
             point1 = it_per_id.feature_per_frame[0].pointRight.head(2);
-            //cout << "point0 " << point0.transpose() << endl;
-            //cout << "point1 " << point1.transpose() << endl;
+//            cout << "point0 " << point0.transpose()
+//            <<"  uv u="<<it_per_id.feature_per_frame[0].uv.x()<<"v="<<it_per_id.feature_per_frame[0].uv.y()<< endl;
+//            cout << "point1 " << point1.transpose()
+//            <<"  uv u="<<it_per_id.feature_per_frame[0].uvRight.x()<<"v="<<it_per_id.feature_per_frame[0].uvRight.y()<< endl;
 
-            triangulatePoint(leftPose, rightPose, point0, point1, point3d);
-            Eigen::Vector3d localPoint;
+            triangulatePoint(leftPose, rightPose, point0, point1, point3d);//利用svd方法三角化
+            Eigen::Vector3d localPoint;//得到imu坐标系下的三维点坐标
+            //换到IMU坐标系
             localPoint = leftPose.leftCols<3>() * point3d + leftPose.rightCols<1>();
             double depth = localPoint.z();
+//            cout<<"depth "<<depth<<endl;
+            double depth_stereo=7.188560000000*53.7165718864418/
+                    (it_per_id.feature_per_frame[0].uv.x()-it_per_id.feature_per_frame[0].uvRight.x());
+//            cout<<"depth_stereo "<<depth_stereo<<endl;
+//            cout<<"depth_in_left_fram "<<point3d.z()<<endl;
             if (depth > 0)
                 it_per_id.estimated_depth = depth;
             else
-                it_per_id.estimated_depth = INIT_DEPTH;
+                it_per_id.estimated_depth = INIT_DEPTH;//INIT_DEPTH=5.0
             /*
             Vector3d ptsGt = pts_gt[it_per_id.feature_id];
             printf("stereo %d pts: %f %f %f gt: %f %f %f \n",it_per_id.feature_id, point3d.x(), point3d.y(), point3d.z(),
@@ -347,6 +375,7 @@ void FeatureManager::triangulate(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vec
         }
         else if(it_per_id.feature_per_frame.size() > 1)
         {
+//            cout<<"size="<<it_per_id.feature_per_frame.size()<<"  isstereo="<<it_per_id.feature_per_frame[0].is_stereo<<endl;
             int imu_i = it_per_id.start_frame;
             Eigen::Matrix<double, 3, 4> leftPose;
             Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
@@ -365,10 +394,16 @@ void FeatureManager::triangulate(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vec
             Eigen::Vector3d point3d;
             point0 = it_per_id.feature_per_frame[0].point.head(2);
             point1 = it_per_id.feature_per_frame[1].point.head(2);
+//            cout << "           point0 " << point0.transpose()
+//                 <<"  uv u="<<it_per_id.feature_per_frame[0].uv.x()<<"v="<<it_per_id.feature_per_frame[0].uv.y()<< endl;
+//            cout << "           point1 " << point1.transpose()
+//                 <<"  uv u="<<it_per_id.feature_per_frame[0].uvRight.x()<<"v="<<it_per_id.feature_per_frame[0].uvRight.y()<< endl;
+
             triangulatePoint(leftPose, rightPose, point0, point1, point3d);
             Eigen::Vector3d localPoint;
             localPoint = leftPose.leftCols<3>() * point3d + leftPose.rightCols<1>();
             double depth = localPoint.z();
+//            cout<<"depth_size>1 "<<depth<<endl;
             if (depth > 0)
                 it_per_id.estimated_depth = depth;
             else

@@ -51,7 +51,9 @@ FeatureTracker::FeatureTracker()
     n_id = 0;
     hasPrediction = false;
 }
-
+//先对跟踪到的特征点 forw_pts 按照跟踪次数降序排列(认为特征点被跟踪到的次数越多越好)，
+// 然后遍历这个降序排列，对于遍历的每一个特征点，在 mask中将该点周围半径为 MIN_DIST=30
+// 的区域设置为 0，在后续的遍历过程中，不再选择该区域内的点
 void FeatureTracker::setMask()
 {
     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
@@ -166,7 +168,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         //记录特征点id的ids，和记录特征点被跟踪次数的track_cnt也要剔除
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
-        reduceVector(ids, status);
+        reduceVector(ids, status);//剔除没有被跟踪的ids。保证当前帧跟踪到上一帧的id保留。因此这个id可能会一直保留，保证了后面特征点的id和之前帧的id融合
         reduceVector(track_cnt, status);
         ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
         //printf("track cnt %d\n", (int)ids.size());
@@ -180,7 +182,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         //rejectWithF();//通过基本矩阵剔除outliers
         ROS_DEBUG("set mask begins");
         TicToc t_m;
-        setMask();//7. setMask()保证相邻的特征点之间要相隔30个像素,设置mask
+        setMask();//7. setMask()保证相邻的特征点之间要相隔30个像素,设置mask  此处修改了ids
         ROS_DEBUG("set mask costs %fms", t_m.toc());
 
         ROS_DEBUG("detect feature begins");// 8. 开始寻找新的特征点 goodFeaturesToTrack()
@@ -192,6 +194,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                 cout << "mask is empty " << endl;
             if (mask.type() != CV_8UC1)
                 cout << "mask type wrong " << endl;
+            //角点检测，之前已经检测到的，使用mask屏蔽掉，不检测。因此检测到的都是新特征点
             cv::goodFeaturesToTrack(cur_img, n_pts, MAX_CNT - cur_pts.size(), 0.01, MIN_DIST, mask);
          /**
          *void cv::goodFeaturesToTrack(    在mask中不为0的区域检测新的特征点
@@ -235,7 +238,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             vector<cv::Point2f> reverseLeftPts;
             vector<uchar> status, statusRightLeft;
             vector<float> err;
-            // cur left ---- cur right
+            // cur left ---- cur right左右目LK光流
             cv::calcOpticalFlowPyrLK(cur_img, rightImg, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
             // reverse check cur right ---- cur left
             if(FLOW_BACK)
@@ -301,6 +304,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
+        //cout<<feature_id<<" "<<endl;
     }
 
     if (!_img1.empty() && stereo_cam)
@@ -436,7 +440,7 @@ vector<cv::Point2f> FeatureTracker::ptsVelocity(vector<int> &ids, vector<cv::Poi
         cur_id_pts.insert(make_pair(ids[i], pts[i]));
     }
 
-    // caculate points velocity
+    // caculate points velocity计算点速度
     if (!prev_id_pts.empty())
     {
         double dt = cur_time - prev_time;

@@ -1,6 +1,6 @@
 <launch>
     <arg name="config_path" default = "$(find vins)/../config/kitti_odom/kitti_config00-02.yaml" />
-	<arg name="vins_path" default = "/media/qiaochunxiao/LENOVO/ALINUX/dataset/00" />
+	<arg name="vins_path" default = "/media/qcx/D/Alinux_file/00" />
     
     <node name="vins_estimator" pkg="vins" type="kitti_odom_test" args="$(arg config_path) $(arg vins_path)" output="screen">
     </node>
