@@ -65,7 +65,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         assert(id_pts.second[0].first == 0);//如果相机的id不为0就判断出错
         if(id_pts.second.size() == 2)//判断是否有右目
         {
-            f_per_fra.rightObservation(id_pts.second[1].second);//右目每一帧的特征点
+            f_per_fra.rightObservation(id_pts.second[1].second);//右目每一帧的特征点 添加特征点
             assert(id_pts.second[1].first == 1);
         }
 
@@ -102,8 +102,8 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     for (auto &it_per_id : feature)
     {
         //计算能被当前帧和其前两帧共同看到的特征点视差
-        if (it_per_id.start_frame <= frame_count - 2 &&
-            it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)
+        if (it_per_id.start_frame <= frame_count - 2 &&//保证有两桢看到该特征点
+            it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)//特征点在滑动窗口连续被发现
         {
             parallax_sum += compensatedParallax2(it_per_id, frame_count);
             parallax_num++;
@@ -273,6 +273,10 @@ void FeatureManager::initFramePoseByPnP(int frameCnt, Vector3d Ps[], Matrix3d Rs
         {
             if (it_per_id.estimated_depth > 0)
             {
+//                if(it_per_id.estimated_depth<15)
+//                    continue;
+                //start_frame为第一次出现该特征点的关键帧号  frameCnt - it_per_id.start_frame表示从现在当前帧到特征点开始帧号之间应存在的特征点数量-1,
+                //index也就是最新的特征点的序号
                 int index = frameCnt - it_per_id.start_frame;//从当前帧向旧帧循环  eg：index=5 、4、 3、 2、 1在链表的大循环里面挑不同index的数据
 
                 //如果特征点队列里的feature_per_frame.size()大于等于index+1，代表着队列里每一帧都有该特征点所以从最远的那一帧计算
@@ -284,16 +288,18 @@ void FeatureManager::initFramePoseByPnP(int frameCnt, Vector3d Ps[], Matrix3d Rs
                 if((int)it_per_id.feature_per_frame.size() >= index + 1)
                 {
                     Vector3d ptsInCam = ric[0] * (it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth) + tic[0];//ric[0]是单位向量，tic[0]是0向量
-                    Vector3d ptsInWorld = Rs[it_per_id.start_frame] * ptsInCam + Ps[it_per_id.start_frame];//start_frame从队列最小的帧号开始
-                    cout<<"start_frame"<<it_per_id.start_frame<<"  Ps_fram\n"<<Ps[it_per_id.start_frame]<<endl;
-                    //cout<<"ric[0]="<<ric[0]<<"  tic[0]="<<tic[0]<<endl;
-                    //cout<<"ptsInCam="<<ptsInCam<<"\nptsInWorld="<<ptsInWorld<<endl;
+                    Vector3d ptsInWorld = Rs[it_per_id.start_frame] * ptsInCam + Ps[it_per_id.start_frame];//start_frame从队列最小的帧号开始，将滑窗里最古老的三维点的世界坐标计算出来
+//                    cout<<"start_frame"<<it_per_id.start_frame<<"  Ps_fram\n"<<Ps[it_per_id.start_frame]<<endl;
+//                    cout<<"ric[0]="<<ric[0]<<"  tic[0]="<<tic[0]<<endl;
+//                    cout<<"ptsInCam="<<ptsInCam<<"\nptsInWorld="<<ptsInWorld<<endl;
 
                     cv::Point3f point3d(ptsInWorld.x(), ptsInWorld.y(), ptsInWorld.z());
                     cv::Point2f point2d(it_per_id.feature_per_frame[index].point.x(), it_per_id.feature_per_frame[index].point.y());
                     pts3D.push_back(point3d);
                     pts2D.push_back(point2d);
-                    cout<<"index="<<index<<"   feature_id"<<it_per_id.feature_id<<endl;
+//                    cout<<"index="<<index<<"   start frame "<<it_per_id.start_frame
+//                    <<"  it_per_id.feature_per_frame.size()"<<it_per_id.feature_per_frame.size()
+//                    <<"   feature_id"<<it_per_id.feature_id<<endl;
                 }
             }
         }
@@ -335,7 +341,6 @@ void FeatureManager::triangulate(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vec
             leftPose.leftCols<3>() = R0.transpose();//左边三列
             leftPose.rightCols<1>() = -R0.transpose() * t0;
 //            cout << "left pose \n" << leftPose << "\n"<<"  row(2)=\n"<<leftPose.row(2)<<endl;
-
             Eigen::Matrix<double, 3, 4> rightPose;
             Eigen::Vector3d t1 = Ps[imu_i] + Rs[imu_i] * tic[1];//利用imu的位姿计算右相机位姿
             Eigen::Matrix3d R1 = Rs[imu_i] * ric[1];//利用imu的位姿计算右相机位姿

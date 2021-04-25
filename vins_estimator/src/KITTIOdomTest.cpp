@@ -86,7 +86,7 @@ int main(int argc, char** argv)
 			printf("\nprocess image %d\n", (int)i);
 			stringstream ss;
 			ss << setfill('0') << setw(6) << i;
-			leftImagePath = dataPath + "image_0/" + ss.str() + ".png";
+			leftImagePath = dataPath + "image_0/" + ss.str() + ".png";//
 			rightImagePath = dataPath + "image_1/" + ss.str() + ".png";
 			//printf("%lu  %f \n", i, imageTimeList[i]);
 			//printf("%s\n", leftImagePath.c_str() );
@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 			Eigen::Matrix<double, 4, 4> pose;
 			estimator.getPoseInWorldFrame(pose);
 			if(outFile != NULL)
-				fprintf (outFile, "%f %f %f %f %f %f %f %f %f %f %f %f \n",pose(0,0), pose(0,1), pose(0,2),pose(0,3),
+				fprintf (outFile, "%f %f %f %f %f %f %f %f %f %f %f %f\n",pose(0,0), pose(0,1), pose(0,2),pose(0,3),
 																	       pose(1,0), pose(1,1), pose(1,2),pose(1,3),
 																	       pose(2,0), pose(2,1), pose(2,2),pose(2,3));
 			

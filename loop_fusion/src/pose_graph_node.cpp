@@ -506,6 +506,7 @@ int main(int argc, char **argv)
 
     measurement_process = std::thread(process);
     keyboard_command_process = std::thread(command);
+    //有一个全局优化线程t_optimization = std::thread(&PoseGraph::optimize4DoF, this);
     
     ros::spin();
 

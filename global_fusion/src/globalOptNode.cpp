@@ -143,7 +143,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 
 
     // write result to file
-    std::ofstream foutC("/home/tony-ws1/output/vio_global.csv", ios::app);
+    std::ofstream foutC("/home/q/robot/pose_saved/vio_global.csv", ios::app);
     foutC.setf(ios::fixed, ios::floatfield);
     foutC.precision(0);
     foutC << pose_msg->header.stamp.toSec() * 1e9 << ",";
@@ -157,7 +157,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
             << global_q.z() << endl;
     foutC.close();
 }
-
+//在globalOpt 中构造函数开启了新的线程   threadOpt = std::thread(&GlobalOptimization::optimize, this);
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "globalEstimator");

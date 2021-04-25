@@ -82,7 +82,7 @@ void sync_process()
             {
                 double time0 = img0_buf.front()->header.stamp.toSec();
                 double time1 = img1_buf.front()->header.stamp.toSec();
-                // 0.003s sync tolerance 同步容差
+                // 0.003s sync tolerance 双目同步容差
                 if(time0 < time1 - 0.003)
                 {
                     img0_buf.pop();
@@ -123,7 +123,7 @@ void sync_process()
             }
             m_buf.unlock();
             if(!image.empty())
-                estimator.inputImage(time, image);
+                estimator.inputImage(time, image);///进入图像处理
         }
 
         std::chrono::milliseconds dura(2);//2ms
@@ -134,6 +134,7 @@ void sync_process()
 
 void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
 {
+
     double t = imu_msg->header.stamp.toSec();
     double dx = imu_msg->linear_acceleration.x;
     double dy = imu_msg->linear_acceleration.y;

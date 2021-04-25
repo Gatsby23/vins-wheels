@@ -53,6 +53,11 @@ public:
                                    vector<cv::Point2f> &curLeftPts, 
                                    vector<cv::Point2f> &curRightPts,
                                    map<int, cv::Point2f> &prevLeftPtsMap);
+    void showTrack_qiao(const cv::Mat &cur_img_,const cv::Mat prv_img_,//自己写的
+                                        vector<int> &curLeftIds,
+                                        vector<cv::Point2f> &curLeftPts,
+                                        vector<cv::Point2f> &curRightPts,
+                                        map<int, cv::Point2f> &prevLeftPtsMap);
     void setPrediction(map<int, Eigen::Vector3d> &predictPts);
     double distance(cv::Point2f &pt1, cv::Point2f &pt2);
     void removeOutliers(set<int> &removePtsIds);
@@ -64,6 +69,7 @@ public:
     cv::Mat mask;
     cv::Mat fisheye_mask;
     cv::Mat prev_img, cur_img;
+    cv::Mat prev_ing_test_q;
     vector<cv::Point2f> n_pts;
     vector<cv::Point2f> predict_pts;
     vector<cv::Point2f> predict_pts_debug;

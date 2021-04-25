@@ -174,7 +174,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         //printf("track cnt %d\n", (int)ids.size());
     }
 
-    for (auto &n : track_cnt)
+    for (auto &n : track_cnt)////将track_cnt中的每个数进行加一处理，代表又跟踪了一次
         n++;
 
     if (1)
@@ -269,8 +269,12 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         }
         prev_un_right_pts_map = cur_un_right_pts_map;
     }
-    if(SHOW_TRACK)
+    if(SHOW_TRACK)//制作显示的图片
+    {
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
+        if(!prev_img.empty())showTrack_qiao(cur_img,prev_img,ids, cur_pts, prev_pts, prevLeftPtsMap);
+        //cv::waitKey(1);
+    }
 
     // 更新帧、特征点
     //当下一帧图像到来时，当前帧数据就成为了上一帧发布的数据
@@ -468,6 +472,48 @@ vector<cv::Point2f> FeatureTracker::ptsVelocity(vector<int> &ids, vector<cv::Poi
         }
     }
     return pts_velocity;
+}
+
+void FeatureTracker::showTrack_qiao(const cv::Mat &cur_img_,const cv::Mat prv_img_,
+                                    vector<int> &curLeftIds,
+                                    vector<cv::Point2f> &curLeftPts,
+                                    vector<cv::Point2f> &curRightPts,
+                                    map<int, cv::Point2f> &prevLeftPtsMap)
+{
+    int rows = cur_img_.rows;
+    cv::Mat cur_img_1;//=cur_img.clone();
+    cv::Mat cur_img_2=cur_img_.clone();
+    cv::Mat prv_img_2=prv_img_.clone();
+    cv::vconcat(cur_img,prv_img_,cur_img_1);
+    cv::cvtColor(cur_img_1, cur_img_1, CV_GRAY2RGB);
+    for (size_t j = 0; j < curLeftPts.size(); j++)
+    {
+        double len = std::min(1.0, 1.0 * track_cnt[j] / 20);
+        cv::Point2f prev_Pt_ = curRightPts[j];
+        prev_Pt_.y=prev_Pt_.y+rows;
+        cv::circle(cur_img_1, curLeftPts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+
+        cv::circle(cur_img_1, prev_Pt_, 1, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+    }
+    map<int, cv::Point2f>::iterator mapIt;
+    int len_ids=curLeftIds.size();
+    for (size_t i = 0; i < curLeftIds.size(); i++)
+    {
+        int id = curLeftIds[i];
+        mapIt = prevLeftPtsMap.find(id);
+        if(mapIt != prevLeftPtsMap.end())
+        {
+            cv::Point2f prev_point;
+            prev_point.x=mapIt->second.x;
+            prev_point.y=mapIt->second.y+rows;
+            cv::arrowedLine(cur_img_1, curLeftPts[i], mapIt->second, cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
+            cv::line(cur_img_1, curLeftPts[i], prev_point, cv::Scalar(i*255/len_ids, 0, 255-255*i/len_ids));
+        }
+    }
+    cv::Mat matchs_;
+//    cv::drawMatches(cur_img_2,curLeftPts,prv_img_2,curRightPts,matchs_,matchs_);
+    cv::imshow("left_right",cur_img_1);
+    //cv::waitKey(0);
 }
 
 void FeatureTracker::drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight, 

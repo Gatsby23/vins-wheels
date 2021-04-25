@@ -22,10 +22,10 @@ InitialEXRotation::InitialEXRotation(){
 bool InitialEXRotation::CalibrationExRotation(vector<pair<Vector3d, Vector3d>> corres, Quaterniond delta_q_imu, Matrix3d &calib_ric_result)
 {
     frame_count++;
-    Rc.push_back(solveRelativeR(corres));
+    Rc.push_back(solveRelativeR(corres));//计算前后桢的旋转
     Rimu.push_back(delta_q_imu.toRotationMatrix());
-    Rc_g.push_back(ric.inverse() * delta_q_imu * ric);
-
+    //ric初始化为单位矩阵
+    Rc_g.push_back(ric.inverse() * delta_q_imu * ric);////ric 为相机和imu外参  Rc_g相机坐标系下的IMU旋转
     Eigen::MatrixXd A(frame_count * 4, 4);
     A.setZero();
     int sum_ok = 0;
@@ -40,7 +40,7 @@ bool InitialEXRotation::CalibrationExRotation(vector<pair<Vector3d, Vector3d>> c
 
         double huber = angular_distance > 5.0 ? 5.0 / angular_distance : 1.0;
         ++sum_ok;
-        Matrix4d L, R;
+        Matrix4d L, R;//L和R表示四元数的左乘矩阵和右乘矩阵
 
         double w = Quaterniond(Rc[i]).w();
         Vector3d q = Quaterniond(Rc[i]).vec();
@@ -87,9 +87,9 @@ Matrix3d InitialEXRotation::solveRelativeR(const vector<pair<Vector3d, Vector3d>
             ll.push_back(cv::Point2f(corres[i].first(0), corres[i].first(1)));
             rr.push_back(cv::Point2f(corres[i].second(0), corres[i].second(1)));
         }
-        cv::Mat E = cv::findFundamentalMat(ll, rr);
+        cv::Mat E = cv::findFundamentalMat(ll, rr);//计算本质矩阵
         cv::Mat_<double> R1, R2, t1, t2;
-        decomposeE(E, R1, R2, t1, t2);
+        decomposeE(E, R1, R2, t1, t2);//svd分解计算
 
         if (determinant(R1) + 1.0 < 1e-09)
         {
