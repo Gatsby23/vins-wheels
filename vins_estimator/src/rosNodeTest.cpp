@@ -101,7 +101,7 @@ void sync_process()
                     img0_buf.pop();
                     image1 = getImageFromMsg(img1_buf.front());
                     img1_buf.pop();
-                    printf("find img0 and img1\n");
+                    printf("find img0 and img1 time0=%f\n",time0);
                 }
             }
             m_buf.unlock();

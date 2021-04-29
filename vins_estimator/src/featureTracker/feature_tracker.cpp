@@ -122,6 +122,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         TicToc t_o;
         vector<uchar> status;
         vector<float> err;
+        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         if(hasPrediction)//执行向前和向后的光流以提高特征跟踪精度
         {
             cur_pts = predict_pts;
@@ -140,6 +141,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         }
         else
             cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+        chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+        chrono::duration<double,milli> time_used = chrono::duration_cast<chrono::duration<double,milli>>(t2 - t1);
+        cout<<"LK_time_used "<<time_used.count()<<"ms"<<endl;
         // reverse check
         if(FLOW_BACK)//执行向前和向后的光流以提高特征跟踪精度
         {
@@ -188,6 +192,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         ROS_DEBUG("detect feature begins");// 8. 开始寻找新的特征点 goodFeaturesToTrack()
         TicToc t_t;
         int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());//计算是否需要提取新的特征点
+
+        chrono::steady_clock::time_point t1_track = chrono::steady_clock::now();
         if (n_max_cnt > 0)
         {
             if(mask.empty())
@@ -212,6 +218,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         }
         else
             n_pts.clear();
+        chrono::steady_clock::time_point t2_track = chrono::steady_clock::now();
+        chrono::duration<double,milli> time_used_track  = chrono::duration_cast<chrono::duration<double,milli>>(t2_track - t1_track);
+        cout<<"track _time_used "<<time_used_track.count()<<"ms"<<endl;
         ROS_DEBUG("detect feature costs: %f ms", t_t.toc());
         for (auto &p : n_pts)//addPoints()向cur_pts添加新的追踪点
         {

@@ -394,15 +394,15 @@ void pubKeyframe(const Estimator &estimator)
                 Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
                 Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])
                                       + estimator.Ps[imu_i];
-                std::cout<<"\n pts_i=\n"<<pts_i<<endl;
-                std::cout<<"w_pts_i=    \n"<<w_pts_i<<endl;
-                std::cout<<"it_per_id.feature_per_frame[0].point=   \n"<<it_per_id.feature_per_frame[0].point<<endl;
-                std::cout<<"it_per_id.estimated_depth=              \n"<<it_per_id.estimated_depth<<endl;
-                std::cout<<"estimator.Rs[imu_i]=    \n"<<estimator.Rs[imu_i]<<endl;
-                std::cout<<"estimator.ric[0]   =    \n"<<estimator.ric[0]<<endl;
-                std::cout<<"pts_i              =    \n"<<pts_i<<endl;
-                std::cout<<"estimator.tic[0]   =    \n"<<estimator.tic[0]<<endl;
-                std::cout<<"estimator.Ps[imu_i]=    \n"<<estimator.Ps[imu_i]<<endl;
+//                std::cout<<"\n pts_i=\n"<<pts_i<<endl;
+//                std::cout<<"w_pts_i=    \n"<<w_pts_i<<endl;
+//                std::cout<<"it_per_id.feature_per_frame[0].point=   \n"<<it_per_id.feature_per_frame[0].point<<endl;
+//                std::cout<<"it_per_id.estimated_depth=              \n"<<it_per_id.estimated_depth<<endl;
+//                std::cout<<"estimator.Rs[imu_i]=    \n"<<estimator.Rs[imu_i]<<endl;
+//                std::cout<<"estimator.ric[0]   =    \n"<<estimator.ric[0]<<endl;
+//                std::cout<<"pts_i              =    \n"<<pts_i<<endl;
+//                std::cout<<"estimator.tic[0]   =    \n"<<estimator.tic[0]<<endl;
+//                std::cout<<"estimator.Ps[imu_i]=    \n"<<estimator.Ps[imu_i]<<endl;
                 geometry_msgs::Point32 p;
                 p.x = w_pts_i(0);
                 p.y = w_pts_i(1);
@@ -417,7 +417,7 @@ void pubKeyframe(const Estimator &estimator)
                 p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].uv.y());
                 p_2d.values.push_back(it_per_id.feature_id);
                 point_cloud.channels.push_back(p_2d);
-                std::cout<<"it_per_id.feature_id=    \n"<<it_per_id.feature_id<<"\n"<<endl;
+//                std::cout<<"it_per_id.feature_id=    \n"<<it_per_id.feature_id<<"\n"<<endl;
             }
 
         }

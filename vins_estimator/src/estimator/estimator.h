@@ -78,6 +78,8 @@ class Estimator
     void updateLatestStates();
     void fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity);
     bool IMUAvailable(double t);
+    void writr_imu_data(double time,double length_,Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);
+    //void writr_imu_data(Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);//自己写的 存储IMU数据
     void initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector);
 
     enum SolverFlag

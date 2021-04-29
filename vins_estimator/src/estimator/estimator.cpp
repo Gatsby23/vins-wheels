@@ -217,7 +217,7 @@ void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vec
     {
         mPropagate.lock();
         fastPredictIMU(t, linearAcceleration, angularVelocity);//积分出  P V Q
-        printf("fastPredictIMU \n");
+//        printf("fastPredictIMU \n");
         pubLatestOdometry(latest_P, latest_Q, latest_V, t);
         mPropagate.unlock();
     }
@@ -310,6 +310,7 @@ void Estimator::processMeasurements()
 
             if(USE_IMU)
             {
+                cout<<"处理IMU前的Rs\n"<<Rs[frame_count]<<endl;
                 if(!initFirstPoseFlag)
                     initFirstIMUPose(accVector);//初始化IMU旋转，使其Z与g平行
                 for(size_t i = 0; i < accVector.size(); i++)
@@ -322,8 +323,15 @@ void Estimator::processMeasurements()
                     else
                         dt = accVector[i].first - accVector[i - 1].first;//中间数据的时间戳
                     processIMU(accVector[i].first, dt, accVector[i].second, gyrVector[i].second);//滑动窗口帧间IMU积分，
-                    printf("------------------------processIMU \n");
                 }
+                cout<<"处理IMU后的Rs\n"<<Rs[frame_count]<<endl;
+                Eigen::Vector3d acc_without_g=Rs[frame_count] * (accVector[int(accVector.size())-1].second - Bas[frame_count]) ;//- g;
+                Eigen::Vector3d r_acc_=Rs[frame_count] * (accVector[int(accVector.size())-1].second ) ;//- g;
+                double length=sqrt(pow(accVector[int(accVector.size())-1].second.x(),2)+pow(accVector[int(accVector.size())-1].second.y(),2)+pow(accVector[int(accVector.size())-1].second.z(),2));
+                cout<<"length="<<length<<"   acc_origion="<<accVector[int(accVector.size())-1].second.transpose()<<"       acc_without_g"<<acc_without_g.transpose()<<"  r_acc_="<<r_acc_.transpose()<<"  g="<<g.transpose()<<endl;
+                //if(abs(length-9.8)<0.05)
+                    writr_imu_data(accVector[int(accVector.size())-1].first,length,accVector[int(accVector.size())-1].second,acc_without_g,r_acc_);
+                printf("------------------------processIMU \n");
             }
             mProcess.lock();
             processImage(feature.second, feature.first);//重要   特征点相关，时间戳// 处理图像 和IMU
@@ -351,7 +359,34 @@ void Estimator::processMeasurements()
         std::this_thread::sleep_for(dura);
     }
 }
-
+//存储IMU数据
+void Estimator::writr_imu_data(double time,double length_,Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_)
+{
+    // write result to file
+    string imu_data_path=OUTPUT_FOLDER+"imu_2.csv";
+    ofstream foutC(imu_data_path, ios::app);
+    foutC.setf(ios::fixed, ios::floatfield);
+    foutC.precision(0);
+    foutC << inputImageCnt << ",";
+    foutC.precision(7);
+    foutC << length_<<","
+          <<acc_ori.x() << ","
+          << acc_ori.y() << ","
+          << acc_ori.z() << ","
+          << acc_whithout_g.x() << ","
+          << acc_whithout_g.y() << ","
+          << acc_whithout_g.z() << ","
+          << R_acc_.x() << ","
+          << R_acc_.y() << ","
+          << R_acc_.z() << ","
+          <<Bas->x()<<","
+          <<Bas->y()<<","
+          <<Bas->z()<<","
+          <<frame_count<<","
+          <<marginalization_flag<<","
+          << endl;
+    foutC.close();
+}
 
 void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector)
 {
@@ -370,6 +405,11 @@ void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVecto
     double yaw = Utility::R2ypr(R0).x();
     R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
     Rs[0] = R0;
+    Eigen::Matrix3d Disturb;
+    Disturb<<              1 ,-0.414   ,   1,
+    1   ,   1 ,-0.414,
+           -0.414 ,     1  ,    1;
+    Rs[0]=Disturb*Rs[0];
     cout << "init R0 " << endl << Rs[0] << endl;
     //Vs[0] = Vector3d(5, 0, 0);
 }
@@ -411,7 +451,7 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
         angular_velocity_buf[frame_count].push_back(angular_velocity);
 
         int j = frame_count;
-        // 5.采用的是中值积分的传播方式
+        // 5.采用的是中值积分的传播方式  这时是预积分
         Vector3d un_acc_0 = Rs[j] * (acc_0 - Bas[j]) - g;//滑动窗口的Rs[(WINDOW_SIZE + 1)];
         Vector3d un_gyr = 0.5 * (gyr_0 + angular_velocity) - Bgs[j];
         Rs[j] *= Utility::deltaQ(un_gyr * dt).toRotationMatrix();
@@ -520,10 +560,10 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                     frame_it->second.T = Ps[i];
                     i++;
                 }
-                solveGyroscopeBias(all_image_frame, Bgs);
+                solveGyroscopeBias(all_image_frame, Bgs);//陀螺仪bias
                 for (int i = 0; i <= WINDOW_SIZE; i++)
                 {
-                    pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
+                    pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);//重新积分
                 }
                 optimization();
                 updateLatestStates();
