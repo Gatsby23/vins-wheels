@@ -470,6 +470,29 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     //[4]判断是初始化还是非线性优化
     if (solver_flag == INITIAL)
     {
+        //纯视觉sfm
+        if (!STEREO && !USE_IMU)
+        {
+            if (frame_count == WINDOW_SIZE)
+            {
+                bool result = false;
+                if(ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp) > 0.1)
+                {
+                    result = initialStructure();
+                    initial_timestamp = header;
+                }
+                if(result)
+                {
+                    optimization();
+                    updateLatestStates();
+                    solver_flag = NON_LINEAR;
+                    slideWindow();
+                    ROS_INFO("Initialization finish!");
+                }
+                else
+                    slideWindow();
+            }
+        }
         // monocular + IMU initilization
         if (!STEREO && USE_IMU)
         {
@@ -712,6 +735,152 @@ bool Estimator::initialStructure()
             }
         }
         cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);     
+        if(pts_3_vector.size() < 6)
+        {
+            cout << "pts_3_vector size " << pts_3_vector.size() << endl;
+            ROS_DEBUG("Not enough points for solve pnp !");
+            return false;
+        }
+        if (! cv::solvePnP(pts_3_vector, pts_2_vector, K, D, rvec, t, 1))
+        {
+            ROS_DEBUG("solve pnp fail!");
+            return false;
+        }
+        cv::Rodrigues(rvec, r);
+        MatrixXd R_pnp,tmp_R_pnp;
+        cv::cv2eigen(r, tmp_R_pnp);
+        R_pnp = tmp_R_pnp.transpose();
+        MatrixXd T_pnp;
+        cv::cv2eigen(t, T_pnp);
+        T_pnp = R_pnp * (-T_pnp);
+        frame_it->second.R = R_pnp * RIC[0].transpose();
+        frame_it->second.T = T_pnp;
+    }
+    if (visualInitialAlign())
+        return true;
+    else
+    {
+        ROS_INFO("misalign visual structure with IMU");
+        return false;
+    }
+
+}
+//纯视觉初始化
+bool Estimator::initialSfm()
+{
+    TicToc t_sfm;
+    //check imu observibility
+    {
+        map<double, ImageFrame>::iterator frame_it;
+        Vector3d sum_g;
+        for (frame_it = all_image_frame.begin(), frame_it++; frame_it != all_image_frame.end(); frame_it++)
+        {
+            double dt = frame_it->second.pre_integration->sum_dt;
+            Vector3d tmp_g = frame_it->second.pre_integration->delta_v / dt;
+            sum_g += tmp_g;
+        }
+        Vector3d aver_g;
+        aver_g = sum_g * 1.0 / ((int)all_image_frame.size() - 1);
+        double var = 0;
+        for (frame_it = all_image_frame.begin(), frame_it++; frame_it != all_image_frame.end(); frame_it++)
+        {
+            double dt = frame_it->second.pre_integration->sum_dt;
+            Vector3d tmp_g = frame_it->second.pre_integration->delta_v / dt;
+            var += (tmp_g - aver_g).transpose() * (tmp_g - aver_g);
+            //cout << "frame g " << tmp_g.transpose() << endl;
+        }
+        var = sqrt(var / ((int)all_image_frame.size() - 1));
+        //ROS_WARN("IMU variation %f!", var);
+        if(var < 0.25)
+        {
+            ROS_INFO("IMU excitation not enouth!");
+            //return false;
+        }
+    }
+    // global sfm
+    Quaterniond Q[frame_count + 1];
+    Vector3d T[frame_count + 1];
+    map<int, Vector3d> sfm_tracked_points;
+    vector<SFMFeature> sfm_f;
+    for (auto &it_per_id : f_manager.feature)
+    {
+        int imu_j = it_per_id.start_frame - 1;
+        SFMFeature tmp_feature;
+        tmp_feature.state = false;
+        tmp_feature.id = it_per_id.feature_id;
+        for (auto &it_per_frame : it_per_id.feature_per_frame)
+        {
+            imu_j++;
+            Vector3d pts_j = it_per_frame.point;
+            tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
+        }
+        sfm_f.push_back(tmp_feature);
+    }
+    Matrix3d relative_R;
+    Vector3d relative_T;
+    int l;
+    if (!relativePose(relative_R, relative_T, l))
+    {
+        ROS_INFO("Not enough features or parallax; Move device around");
+        return false;
+    }
+    GlobalSFM sfm;
+    if(!sfm.construct(frame_count + 1, Q, T, l,
+                      relative_R, relative_T,
+                      sfm_f, sfm_tracked_points))
+    {
+        ROS_DEBUG("global SFM failed!");
+        marginalization_flag = MARGIN_OLD;
+        return false;
+    }
+
+    //solve pnp for all frame
+    map<double, ImageFrame>::iterator frame_it;
+    map<int, Vector3d>::iterator it;
+    frame_it = all_image_frame.begin( );
+    for (int i = 0; frame_it != all_image_frame.end( ); frame_it++)
+    {
+        // provide initial guess
+        cv::Mat r, rvec, t, D, tmp_r;
+        if((frame_it->first) == Headers[i])
+        {
+            frame_it->second.is_key_frame = true;
+            frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
+            frame_it->second.T = T[i];
+            i++;
+            continue;
+        }
+        if((frame_it->first) > Headers[i])
+        {
+            i++;
+        }
+        Matrix3d R_inital = (Q[i].inverse()).toRotationMatrix();
+        Vector3d P_inital = - R_inital * T[i];
+        cv::eigen2cv(R_inital, tmp_r);
+        cv::Rodrigues(tmp_r, rvec);
+        cv::eigen2cv(P_inital, t);
+
+        frame_it->second.is_key_frame = false;
+        vector<cv::Point3f> pts_3_vector;
+        vector<cv::Point2f> pts_2_vector;
+        for (auto &id_pts : frame_it->second.points)
+        {
+            int feature_id = id_pts.first;
+            for (auto &i_p : id_pts.second)
+            {
+                it = sfm_tracked_points.find(feature_id);
+                if(it != sfm_tracked_points.end())
+                {
+                    Vector3d world_pts = it->second;
+                    cv::Point3f pts_3(world_pts(0), world_pts(1), world_pts(2));
+                    pts_3_vector.push_back(pts_3);
+                    Vector2d img_pts = i_p.second.head<2>();
+                    cv::Point2f pts_2(img_pts(0), img_pts(1));
+                    pts_2_vector.push_back(pts_2);
+                }
+            }
+        }
+        cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         if(pts_3_vector.size() < 6)
         {
             cout << "pts_3_vector size " << pts_3_vector.size() << endl;

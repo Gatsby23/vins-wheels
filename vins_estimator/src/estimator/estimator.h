@@ -57,6 +57,7 @@ class Estimator
     // internal
     void clearState();
     bool initialStructure();
+    bool initialSfm();//纯视觉sfm
     bool visualInitialAlign();
     bool relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l);
     void slideWindow();
