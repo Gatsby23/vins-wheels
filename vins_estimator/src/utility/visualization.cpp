@@ -6,6 +6,7 @@
  * Licensed under the GNU General Public License v3.0;
  * you may not use this file except in compliance with the License.
  *******************************************************/
+//../../../../VINS-Fusion/config/euroc/euroc_stereo_imu_config.yaml
 
 #include "visualization.h"
 
@@ -55,7 +56,7 @@ void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, co
     nav_msgs::Odometry odometry;
     odometry.header.stamp = ros::Time(t);
     odometry.header.frame_id = "world";
-    odometry.pose.pose.position.x = P.x();
+    odometry.pose.pose.position.x = P.x();//原来没有除以100
     odometry.pose.pose.position.y = P.y();
     odometry.pose.pose.position.z = P.z();
     odometry.pose.pose.orientation.x = Q.x();

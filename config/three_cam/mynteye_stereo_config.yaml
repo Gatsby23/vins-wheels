@@ -7,9 +7,12 @@ imu: 0
 num_of_cam: 2  
 
 imu_topic: "/mynteye/imu/data_raw"
-image0_topic: "/mynteye/left/image_raw"
-image1_topic: "/mynteye/right/image_raw"
+#image0_topic: "/mynteye/left/image_raw"
+#image1_topic: "/mynteye/right/image_raw"
 output_path: "/home/zhangs/vins_fusion/"
+
+image0_topic: "/cam02/image_raw"
+image1_topic: "/cam03/image_raw"
 
 cam0_calib: "left_pinhole.yaml"
 cam1_calib: "right_pinhole.yaml"
