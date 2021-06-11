@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18.4)
+cmake_minimum_required(VERSION 3.5.1)
 project(vins)
 
 set(CMAKE_BUILD_TYPE "Debug")
