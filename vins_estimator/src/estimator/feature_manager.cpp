@@ -126,8 +126,11 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
 vector<pair<Vector3d, Vector3d>> FeatureManager::getCorresponding(int frame_count_l, int frame_count_r)
 {
     vector<pair<Vector3d, Vector3d>> corres;
+    int countFeature=0;
     for (auto &it : feature)
     {
+//        std::cout<<"countFeature "<<countFeature<<std::endl;
+        countFeature++;
         if (it.start_frame <= frame_count_l && it.endFrame() >= frame_count_r)
         {
             Vector3d a = Vector3d::Zero(), b = Vector3d::Zero();
@@ -365,6 +368,153 @@ void FeatureManager::triangulate(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vec
 //            cout<<"depth "<<depth<<endl;
             double depth_stereo=7.188560000000*53.7165718864418/
                     (it_per_id.feature_per_frame[0].uv.x()-it_per_id.feature_per_frame[0].uvRight.x());
+//            cout<<"depth_stereo "<<depth_stereo<<endl;
+//            cout<<"depth_in_left_fram "<<point3d.z()<<endl;
+            if (depth > 0)
+                it_per_id.estimated_depth = depth;
+            else
+                it_per_id.estimated_depth = INIT_DEPTH;//INIT_DEPTH=5.0
+            /*
+            Vector3d ptsGt = pts_gt[it_per_id.feature_id];
+            printf("stereo %d pts: %f %f %f gt: %f %f %f \n",it_per_id.feature_id, point3d.x(), point3d.y(), point3d.z(),
+                                                            ptsGt.x(), ptsGt.y(), ptsGt.z());
+            */
+            continue;
+        }
+        else if(it_per_id.feature_per_frame.size() > 1)
+        {
+//            cout<<"size="<<it_per_id.feature_per_frame.size()<<"  isstereo="<<it_per_id.feature_per_frame[0].is_stereo<<endl;
+            int imu_i = it_per_id.start_frame;
+            Eigen::Matrix<double, 3, 4> leftPose;
+            Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
+            Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];
+            leftPose.leftCols<3>() = R0.transpose();
+            leftPose.rightCols<1>() = -R0.transpose() * t0;
+
+            imu_i++;
+            Eigen::Matrix<double, 3, 4> rightPose;
+            Eigen::Vector3d t1 = Ps[imu_i] + Rs[imu_i] * tic[0];
+            Eigen::Matrix3d R1 = Rs[imu_i] * ric[0];
+            rightPose.leftCols<3>() = R1.transpose();
+            rightPose.rightCols<1>() = -R1.transpose() * t1;
+
+            Eigen::Vector2d point0, point1;
+            Eigen::Vector3d point3d;
+            point0 = it_per_id.feature_per_frame[0].point.head(2);
+            point1 = it_per_id.feature_per_frame[1].point.head(2);
+//            cout << "           point0 " << point0.transpose()
+//                 <<"  uv u="<<it_per_id.feature_per_frame[0].uv.x()<<"v="<<it_per_id.feature_per_frame[0].uv.y()<< endl;
+//            cout << "           point1 " << point1.transpose()
+//                 <<"  uv u="<<it_per_id.feature_per_frame[0].uvRight.x()<<"v="<<it_per_id.feature_per_frame[0].uvRight.y()<< endl;
+
+            triangulatePoint(leftPose, rightPose, point0, point1, point3d);
+            Eigen::Vector3d localPoint;
+            localPoint = leftPose.leftCols<3>() * point3d + leftPose.rightCols<1>();
+            double depth = localPoint.z();
+//            cout<<"depth_size>1 "<<depth<<endl;
+            if (depth > 0)
+                it_per_id.estimated_depth = depth;
+            else
+                it_per_id.estimated_depth = INIT_DEPTH;
+            /*
+            Vector3d ptsGt = pts_gt[it_per_id.feature_id];
+            printf("motion  %d pts: %f %f %f gt: %f %f %f \n",it_per_id.feature_id, point3d.x(), point3d.y(), point3d.z(),
+                                                            ptsGt.x(), ptsGt.y(), ptsGt.z());
+            */
+            continue;
+        }
+        it_per_id.used_num = it_per_id.feature_per_frame.size();
+        if (it_per_id.used_num < 4)
+            continue;
+
+        int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
+
+        Eigen::MatrixXd svd_A(2 * it_per_id.feature_per_frame.size(), 4);
+        int svd_idx = 0;
+
+        Eigen::Matrix<double, 3, 4> P0;
+        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
+        Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];
+        P0.leftCols<3>() = Eigen::Matrix3d::Identity();
+        P0.rightCols<1>() = Eigen::Vector3d::Zero();
+
+        for (auto &it_per_frame : it_per_id.feature_per_frame)
+        {
+            imu_j++;
+
+            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
+            Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
+            Eigen::Vector3d t = R0.transpose() * (t1 - t0);
+            Eigen::Matrix3d R = R0.transpose() * R1;
+            Eigen::Matrix<double, 3, 4> P;
+            P.leftCols<3>() = R.transpose();
+            P.rightCols<1>() = -R.transpose() * t;
+            Eigen::Vector3d f = it_per_frame.point.normalized();
+            svd_A.row(svd_idx++) = f[0] * P.row(2) - f[2] * P.row(0);
+            svd_A.row(svd_idx++) = f[1] * P.row(2) - f[2] * P.row(1);
+
+            if (imu_i == imu_j)
+                continue;
+        }
+        ROS_ASSERT(svd_idx == svd_A.rows());
+        Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
+        double svd_method = svd_V[2] / svd_V[3];
+        //it_per_id->estimated_depth = -b / A;
+        //it_per_id->estimated_depth = svd_V[2] / svd_V[3];
+
+        it_per_id.estimated_depth = svd_method;
+        //it_per_id->estimated_depth = INIT_DEPTH;
+
+        if (it_per_id.estimated_depth < 0.1)
+        {
+            it_per_id.estimated_depth = INIT_DEPTH;
+        }
+
+    }
+}
+void FeatureManager::triangulate_sfm(int frameCnt, Vector3d Ps[], Matrix3d Rs[], Vector3d tic[], Matrix3d ric[])
+{
+    int i=0;
+    for (auto &it_per_id : feature)//feature list<FeaturePerId>
+    {
+        //i++;cout<<"i="<<i<<endl;
+        if (it_per_id.estimated_depth > 0)
+            continue;
+
+        if(STEREO && it_per_id.feature_per_frame[0].is_stereo)
+        {
+            //cout<<"size="<<it_per_id.feature_per_frame.size()<<"  isstereo="<<it_per_id.feature_per_frame[0].is_stereo<<endl;
+            int imu_i = it_per_id.start_frame;
+            Eigen::Matrix<double, 3, 4> leftPose;
+            Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];//利用imu的位姿计算左相机位姿t
+            Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];//利用imu的位姿计算左相机位姿r
+            leftPose.leftCols<3>() = R0.transpose();//左边三列
+            leftPose.rightCols<1>() = -R0.transpose() * t0;
+//            cout << "left pose \n" << leftPose << "\n"<<"  row(2)=\n"<<leftPose.row(2)<<endl;
+            Eigen::Matrix<double, 3, 4> rightPose;
+            Eigen::Vector3d t1 = Ps[imu_i] + Rs[imu_i] * tic[1];//利用imu的位姿计算右相机位姿
+            Eigen::Matrix3d R1 = Rs[imu_i] * ric[1];//利用imu的位姿计算右相机位姿
+            rightPose.leftCols<3>() = R1.transpose();
+            rightPose.rightCols<1>() = -R1.transpose() * t1;
+            //cout << "right pose \n" << rightPose << endl;
+
+            Eigen::Vector2d point0, point1;
+            Eigen::Vector3d point3d ;
+            point0 = it_per_id.feature_per_frame[0].point.head(2);
+            point1 = it_per_id.feature_per_frame[0].pointRight.head(2);
+//            cout << "point0 " << point0.transpose()
+//            <<"  uv u="<<it_per_id.feature_per_frame[0].uv.x()<<"v="<<it_per_id.feature_per_frame[0].uv.y()<< endl;
+//            cout << "point1 " << point1.transpose()
+//            <<"  uv u="<<it_per_id.feature_per_frame[0].uvRight.x()<<"v="<<it_per_id.feature_per_frame[0].uvRight.y()<< endl;
+
+            triangulatePoint(leftPose, rightPose, point0, point1, point3d);//利用svd方法三角化
+            Eigen::Vector3d localPoint;//得到imu坐标系下的三维点坐标
+            //换到IMU坐标系
+            localPoint = leftPose.leftCols<3>() * point3d + leftPose.rightCols<1>();
+            double depth = localPoint.z();
+//            cout<<"depth "<<depth<<endl;
+            double depth_stereo=7.188560000000*53.7165718864418/
+                                (it_per_id.feature_per_frame[0].uv.x()-it_per_id.feature_per_frame[0].uvRight.x());
 //            cout<<"depth_stereo "<<depth_stereo<<endl;
 //            cout<<"depth_in_left_fram "<<point3d.z()<<endl;
             if (depth > 0)

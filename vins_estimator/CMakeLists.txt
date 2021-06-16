@@ -60,5 +60,11 @@ add_executable(kitti_odom_test src/KITTIOdomTest.cpp)
 target_link_libraries(kitti_odom_test vins_lib) 
 
 add_executable(kitti_gps_test src/KITTIGPSTest.cpp)
-target_link_libraries(kitti_gps_test vins_lib) 
+target_link_libraries(kitti_gps_test vins_lib)
+
+add_executable(kitti_sfm src/KITTISfm.cpp)
+target_link_libraries(kitti_sfm vins_lib)
+
+add_executable(nclt_sfm src/NCLTSfm.cpp)
+target_link_libraries(nclt_sfm vins_lib)
 
