@@ -882,7 +882,7 @@ bool Estimator::initialSfm()
                       relative_R, relative_T,
                       sfm_f, sfm_tracked_points))
     {
-        ROS_DEBUG("global SFM failed!");
+        ROS_INFO("global SFM failed!");
         std::cout<<"global SFM failed!"<<std::endl;
         marginalization_flag = MARGIN_OLD;
         return false;
