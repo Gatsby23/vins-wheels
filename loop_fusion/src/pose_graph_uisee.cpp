@@ -9,7 +9,7 @@
  * Author: Qin Tong (qintonguav@gmail.com)
  *******************************************************/
 
-#include "pose_graph.h"
+#include "pose_graph_uisee.h"
 
 PoseGraph::PoseGraph()
 {
@@ -65,7 +65,7 @@ void PoseGraph::loadVocabulary(std::string voc_path)
     db.setVocabulary(*voc, false, 0);
 }
 
-void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
+void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop)
 {
     //shift to base frame
     Vector3d vio_P_cur;
@@ -93,11 +93,12 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     {
         TicToc tmp_t;
         //回环检测，返回回环候选帧的索引
-        loop_index = detectLoop(cur_kf, cur_kf->index);
+//        loop_index = detectLoop(cur_kf, cur_kf->index);
+        loop_index = 0;
     }
     else
     {
-        addKeyFrameIntoVoc(cur_kf);
+        addKeyFrameIntoVoc_uisee(cur_kf);
     }
     //得到匹配上关键帧后，经过计算相对位姿，并把当前帧号记录到全局优化内
     //如果存在回环候选帧，将当前帧与回环帧进行描述子匹配并计算位姿，并执行优化
@@ -107,7 +108,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         KeyFrame* old_kf = getKeyFrame(loop_index);//返回对应关键帧的地址,//获取回环候选帧
         // findConnection 是为了计算相对位姿，最主要的就是利用了PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old)函数，
         //并且它负责把匹配好的点发送到estimator节点中去
-        if (cur_kf->findConnection(old_kf))////当前帧与回环候选帧进行描述子匹配  来确定是否是一个真正的闭环
+        if (1)//(cur_kf->findConnection(old_kf))////当前帧与回环候选帧进行描述子匹配  来确定是否是一个真正的闭环
         {
             if (earliest_loop_index > loop_index || earliest_loop_index == -1)//earliest_loop_index为最早的回环候选帧
                 earliest_loop_index = loop_index;
@@ -120,8 +121,8 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             ////获取当前帧与回环帧的相对位姿relative_q、relative_t
             Vector3d relative_t;
             Quaterniond relative_q;
-            relative_t = cur_kf->getLoopRelativeT();
-            relative_q = (cur_kf->getLoopRelativeQ()).toRotationMatrix();
+            relative_t = Eigen::Vector3d::Zero();//cur_kf->getLoopRelativeT();
+            relative_q = Eigen::Quaterniond(1,0,0,0);//(cur_kf->getLoopRelativeQ()).toRotationMatrix();
 
             //重新计算当前帧位姿w_P_cur、w_R_cur
             w_P_cur = w_R_old * relative_t + w_P_old;
@@ -171,17 +172,20 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             m_optimize_buf.unlock();
         }
 	}
+
+
 	m_keyframelist.lock();
     Vector3d P;
     Matrix3d R;
-
+//    P.x()=odom_[1];P.y()=odom_[2];P.z()=odom_[3];
     cur_kf->getVioPose(P, R); //获取VIO当前帧的位姿P、R，根据偏移量得到实际位姿
     P = r_drift * P + t_drift;//在optimize6DoF线程中进行了赋值
     R = r_drift * R;
     std::cout<<"r_drift="<<r_drift<<"  t_drift="<<t_drift<<std::endl;
-    cur_kf->updatePose(P, R);//更新当前帧的位姿P、R到T_w_i R_w_i
+//    cur_kf->updatePose(P, R);//更新当前帧的位姿P、R到T_w_i R_w_i
 
     //发布path[sequence_cnt]
+
     Quaterniond Q{R};
     geometry_msgs::PoseStamped pose_stamped;
     pose_stamped.header.stamp = ros::Time(cur_kf->time_stamp);
@@ -202,7 +206,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
         loop_path_file.setf(ios::fixed, ios::floatfield);
         loop_path_file.precision(0);
-        loop_path_file << cur_kf->time_stamp * 1e9 << ",";
+        loop_path_file << cur_kf->time_stamp << ",";
         loop_path_file.precision(5);
         loop_path_file  << P.x() << ","
               << P.y() << ","
@@ -253,10 +257,12 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             
         }
     }
+
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
     //发送path主题数据，用以显示
-	keyframelist.push_back(cur_kf);
-    publish();
+//	keyframelist.push_back(cur_kf);
+    std::cout<<"pub_path"<<std::endl;
+    publish_uisee();
 	m_keyframelist.unlock();
 }
 
@@ -924,7 +930,7 @@ void PoseGraph::updatePath()
         }
 
     }
-    publish();
+    publish_uisee();
     m_keyframelist.unlock();
 }
 
@@ -1095,7 +1101,7 @@ void PoseGraph::loadPoseGraph()
         loadKeyFrame(keyframe, 0);
         if (cnt % 20 == 0)
         {
-            publish();
+            publish_uisee();
         }
         cnt++;
     }
@@ -1104,18 +1110,18 @@ void PoseGraph::loadPoseGraph()
     base_sequence = 0;
 }
 
-void PoseGraph::publish()
+void PoseGraph::publish_uisee()
 {
     for (int i = 1; i <= sequence_cnt; i++)
     {
         //if (sequence_loop[i] == true || i == base_sequence)
-        if (1 || i == base_sequence)
+        if (1)//(1 || i == base_sequence)
         {
             pub_pg_path.publish(path[i]);//"pose_graph_path"
-            pub_path[i].publish(path[i]);//"path_" + to_string(i)
-            posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);//"pose_graph"
+//            pub_path[i].publish(path[i]);//"path_" + to_string(i)
+//            posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);//"pose_graph"
         }
     }
-    pub_base_path.publish(base_path);//"base_path"
+//    pub_base_path.publish(base_path);//"base_path"
     //posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
 }

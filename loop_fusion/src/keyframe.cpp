@@ -81,7 +81,28 @@ KeyFrame::KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3
 	keypoints_norm = _keypoints_norm;
 	brief_descriptors = _brief_descriptors;
 }
+//uisee
+KeyFrame::KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i)
+{
+    time_stamp = _time_stamp;
+    index = _index;
+    vio_T_w_i = _vio_T_w_i;
+    vio_R_w_i = _vio_R_w_i;
+    T_w_i = vio_T_w_i;
+    R_w_i = vio_R_w_i;
+    origin_vio_T = vio_T_w_i;
+    origin_vio_R = vio_R_w_i;
 
+    has_loop = false;
+    loop_index = -1;
+    has_fast_point = false;
+    loop_info << 0, 0, 0, 0, 0, 0, 0, 0;
+    sequence = 1;
+//    computeWindowBRIEFPoint();
+//    computeBRIEFPoint();
+//    if(!DEBUG_IMAGE)
+//        image.release();
+}
 
 void KeyFrame::computeWindowBRIEFPoint()
 {

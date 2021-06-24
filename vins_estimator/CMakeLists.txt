@@ -68,3 +68,6 @@ target_link_libraries(kitti_sfm vins_lib)
 add_executable(nclt_sfm src/NCLTSfm.cpp)
 target_link_libraries(nclt_sfm vins_lib)
 
+add_executable(uisee_sfm src/uiseeSfm.cpp)
+target_link_libraries(uisee_sfm vins_lib)
+

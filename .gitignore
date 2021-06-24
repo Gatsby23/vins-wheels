@@ -14,3 +14,11 @@ result_gps.txt
 2*.txt
 camera_camera_calib.yaml
 camera_chessboard_data.dat
+
+camera_models/cmake-build-debug/
+global_fusion/.idea/
+global_fusion/cmake-build-debug/
+loop_fusion/cmake-build-debug/
+vins_estimator/cmake-build-debug/
+./idea/
+
