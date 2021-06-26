@@ -53,6 +53,7 @@ public:
 	void loadKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop);
 	void loadVocabulary(std::string voc_path);
 	void setIMUFlag(bool _use_imu);
+    void optimize6DoF_uisee();
 	KeyFrame* getKeyFrame(int index);
 	nav_msgs::Path path[10];
 	nav_msgs::Path base_path;
@@ -70,7 +71,7 @@ public:
 
 private:
 	int detectLoop(KeyFrame* keyframe, int frame_index);
-	void addKeyFrameIntoVoc(KeyFrame* keyframe);
+	void addKeyFrameIntoVoc_uisee(KeyFrame* keyframe);
 	void optimize4DoF();
 	void optimize6DoF();
 	void updatePath();

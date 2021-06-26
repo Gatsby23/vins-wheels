@@ -201,7 +201,7 @@ void vio_callback(const std::vector<double> &camPose,int index)
     vio_q.x() = camPose[4];
     vio_q.y() = camPose[5];
     vio_q.z() = camPose[6];
-    std::cout<<"before "<<vio_t.transpose()<<std::endl;
+//    std::cout<<"before "<<vio_t.transpose()<<std::endl;
     vio_t = posegraph.w_r_vio * vio_t + posegraph.w_t_vio;
     vio_q = posegraph.w_r_vio *  vio_q;
 
@@ -230,10 +230,15 @@ void vio_callback(const std::vector<double> &camPose,int index)
     cameraposevisual.reset();
     cameraposevisual.add_pose(vio_t_cam, vio_q_cam);
     cameraposevisual.publish_by(pub_camera_pose_visual, odometry.header);
-    KeyFrame* keyframe = new KeyFrame(camPose[1], frame_index, vio_t, vio_R);   //应该是生成fast特征点了，用于DBW2中的query
-    if(camPose[0]>1596529072)
+    KeyFrame* keyframe = new KeyFrame(camPose[0], frame_index, vio_t, vio_R);   //应该是生成fast特征点了，用于DBW2中的query
+
+    std::cout<<"index="<<index;
+    if(0)//(index>300 && index<302)
+    {
         posegraph.addKeyFrame_uisee(keyframe, 1);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
-    else
+        posegraph.optimize6DoF_uisee();
+    }
+    else //if(index<302)
         posegraph.addKeyFrame_uisee(keyframe, 0);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
 }
 
@@ -410,36 +415,8 @@ void command()
         std::this_thread::sleep_for(dura);
     }
 }
-
-
-//闭环检测中每一个关键帧有两类特征点：
-//goodFeatureToTrack检测到的点及光流track到的点，这些点在FeatureTracker类中得到
-//        KeyFrame类中提取的FAST特征点
-int main(int argc, char **argv)
+void loade_image()
 {
-    ros::init(argc, argv, "loop_fusion");
-    ros::NodeHandle n("~");
-    posegraph.registerPub(n);
-
-    pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
-    pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
-    pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud_loop_rect", 1000);
-    pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("margin_cloud_loop_rect", 1000);
-    pub_odometry_rect = n.advertise<nav_msgs::Odometry>("odometry_rect", 1000);
-
-
-    VISUALIZATION_SHIFT_X = 0;
-    VISUALIZATION_SHIFT_Y = 0;
-    SKIP_CNT = 0;
-    SKIP_DIS = 0;
-
-    if(argc != 2)
-    {
-        printf("please intput: rosrun loop_fusion loop_fusion_node [config file] \n"
-               "for example: rosrun loop_fusion loop_fusion_node "
-               "/home/tony-ws1/catkin_ws/src/VINS-Fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
-        return 0;
-    }
 
 #if 1
     //read uisee odom and camodom
@@ -499,6 +476,37 @@ int main(int argc, char **argv)
     fileCamOdom.close();
 #endif
 
+}
+
+//闭环检测中每一个关键帧有两类特征点：
+//goodFeatureToTrack检测到的点及光流track到的点，这些点在FeatureTracker类中得到
+//        KeyFrame类中提取的FAST特征点
+int main(int argc, char **argv)
+{
+    ros::init(argc, argv, "loop_fusion");
+    ros::NodeHandle n("~");
+    posegraph.registerPub(n);
+
+    pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
+    pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
+    pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud_loop_rect", 1000);
+    pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("margin_cloud_loop_rect", 1000);
+    pub_odometry_rect = n.advertise<nav_msgs::Odometry>("odometry_rect", 1000);
+
+
+    VISUALIZATION_SHIFT_X = 0;
+    VISUALIZATION_SHIFT_Y = 0;
+    SKIP_CNT = 0;
+    SKIP_DIS = 0;
+
+    if(argc != 2)
+    {
+        printf("please intput: rosrun loop_fusion loop_fusion_node [config file] \n"
+               "for example: rosrun loop_fusion loop_fusion_node "
+               "/home/tony-ws1/catkin_ws/src/VINS-Fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
+        return 0;
+    }
+    loade_image();
     
     string config_file = argv[1];
     printf("config_file: %s\n", argv[1]);
@@ -561,6 +569,8 @@ int main(int argc, char **argv)
         printf("no previous pose graph\n");
         load_flag = 1;
     }
+
+
 
 //    ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 2000, vio_callback);
     ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);

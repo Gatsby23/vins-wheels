@@ -644,7 +644,6 @@ void PoseGraph::optimize4DoF()
     return;
 }
 
-
 void PoseGraph::optimize6DoF()
 {
     while(true)
