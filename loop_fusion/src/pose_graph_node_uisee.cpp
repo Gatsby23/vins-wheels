@@ -27,12 +27,15 @@
 #include <eigen3/Eigen/Dense>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
-#include "keyframe.h"
+#include "keyframe_uisee.h"
+
 #include "utility/tic_toc.h"
 #include "pose_graph_uisee.h"
 #include "utility/CameraPoseVisualization.h"
 #include "parameters.h"
 
+//#include "parameters/parameters.h"
+#include "./featureTracker/feature_tracker.h"
 #include <unistd.h>
 #define SKIP_FIRST_CNT 10
 using namespace std;
@@ -74,6 +77,7 @@ Eigen::Vector3d last_t(-100, -100, -100);
 double last_image_time = -1;
 
 ros::Publisher pub_point_cloud, pub_margin_cloud;
+std::vector<std::string> CAM_NAMES;
 
 void new_sequence()
 {
@@ -117,62 +121,7 @@ void image_callback(const sensor_msgs::ImageConstPtr &image_msg)
     }
     last_image_time = image_msg->header.stamp.toSec();
 }
-
-void point_callback(const sensor_msgs::PointCloudConstPtr &point_msg)
-{
-    //ROS_INFO("point_callback!");
-    m_buf.lock();
-    point_buf.push(point_msg);
-    m_buf.unlock();
-    /*
-    for (unsigned int i = 0; i < point_msg->points.size(); i++)
-    {
-        printf("%d, 3D point: %f, %f, %f 2D point %f, %f \n",i , point_msg->points[i].x, 
-                                                     point_msg->points[i].y,
-                                                     point_msg->points[i].z,
-                                                     point_msg->channels[i].values[0],
-                                                     point_msg->channels[i].values[1]);
-    }
-    */
-    // for visualization
-    sensor_msgs::PointCloud point_cloud;
-    point_cloud.header = point_msg->header;
-    for (unsigned int i = 0; i < point_msg->points.size(); i++)
-    {
-        cv::Point3f p_3d;
-        p_3d.x = point_msg->points[i].x;
-        p_3d.y = point_msg->points[i].y;
-        p_3d.z = point_msg->points[i].z;
-        Eigen::Vector3d tmp = posegraph.r_drift * Eigen::Vector3d(p_3d.x, p_3d.y, p_3d.z) + posegraph.t_drift;
-        geometry_msgs::Point32 p;
-        p.x = tmp(0);
-        p.y = tmp(1);
-        p.z = tmp(2);
-        point_cloud.points.push_back(p);
-    }
-    pub_point_cloud.publish(point_cloud);
-}
-
 // only for visualization
-void margin_point_callback(const sensor_msgs::PointCloudConstPtr &point_msg)
-{
-    sensor_msgs::PointCloud point_cloud;
-    point_cloud.header = point_msg->header;
-    for (unsigned int i = 0; i < point_msg->points.size(); i++)
-    {
-        cv::Point3f p_3d;
-        p_3d.x = point_msg->points[i].x;
-        p_3d.y = point_msg->points[i].y;
-        p_3d.z = point_msg->points[i].z;
-        Eigen::Vector3d tmp = posegraph.r_drift * Eigen::Vector3d(p_3d.x, p_3d.y, p_3d.z) + posegraph.t_drift;
-        geometry_msgs::Point32 p;
-        p.x = tmp(0);
-        p.y = tmp(1);
-        p.z = tmp(2);
-        point_cloud.points.push_back(p);
-    }
-    pub_margin_cloud.publish(point_cloud);
-}
 
 void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 {
@@ -191,55 +140,68 @@ void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     */
 }
 
-void vio_callback(const std::vector<double> &camPose,int index)
+void vio_callback(const std::vector<std::vector<double>> &camPoseLis,int index)//uisee loop
 {
     //ROS_INFO("vio_callback!");
-
-    Vector3d vio_t(camPose[1], camPose[2], camPose[3]);
-    Quaterniond vio_q;
-    vio_q.w() = camPose[7];
-    vio_q.x() = camPose[4];
-    vio_q.y() = camPose[5];
-    vio_q.z() = camPose[6];
+    int loop_index_uisee=-1;
+    double old_time=1596528944.9046099;
+    double cur_time=1596529119.2249601;
+    for(int i=0;i<camPoseLis.size()-1;i++) {
+        std::vector<double>camPose=camPoseLis[i];
+        index=i;
+        Vector3d vio_t(camPose[1], camPose[2], camPose[3]);
+        Quaterniond vio_q;
+        vio_q.w() = camPose[7];
+        vio_q.x() = camPose[4];
+        vio_q.y() = camPose[5];
+        vio_q.z() = camPose[6];
 //    std::cout<<"before "<<vio_t.transpose()<<std::endl;
-    vio_t = posegraph.w_r_vio * vio_t + posegraph.w_t_vio;
-    vio_q = posegraph.w_r_vio *  vio_q;
+        vio_t = posegraph.w_r_vio * vio_t + posegraph.w_t_vio;
+        vio_q = posegraph.w_r_vio * vio_q;
 
-    vio_t = posegraph.r_drift * vio_t + posegraph.t_drift;
-    vio_q = posegraph.r_drift * vio_q;
+        vio_t = posegraph.r_drift * vio_t + posegraph.t_drift;
+        vio_q = posegraph.r_drift * vio_q;
 
-    nav_msgs::Odometry odometry;
-    odometry.header.stamp=ros::Time::now(); //ros::Time(camPose[1]);
-    odometry.header.frame_id = "world";
-    odometry.pose.pose.position.x = vio_t.x();
-    odometry.pose.pose.position.y = vio_t.y();
-    odometry.pose.pose.position.z = vio_t.z();
-    odometry.pose.pose.orientation.x = vio_q.x();
-    odometry.pose.pose.orientation.y = vio_q.y();
-    odometry.pose.pose.orientation.z = vio_q.z();
-    odometry.pose.pose.orientation.w = vio_q.w();
-    pub_odometry_rect.publish(odometry);
+        nav_msgs::Odometry odometry;
+        odometry.header.stamp = ros::Time::now(); //ros::Time(camPose[1]);
+        odometry.header.frame_id = "world";
+        odometry.pose.pose.position.x = vio_t.x();
+        odometry.pose.pose.position.y = vio_t.y();
+        odometry.pose.pose.position.z = vio_t.z();
+        odometry.pose.pose.orientation.x = vio_q.x();
+        odometry.pose.pose.orientation.y = vio_q.y();
+        odometry.pose.pose.orientation.z = vio_q.z();
+        odometry.pose.pose.orientation.w = vio_q.w();
+        pub_odometry_rect.publish(odometry);
 
-    Vector3d vio_t_cam;
-    Quaterniond vio_q_cam;
+        Vector3d vio_t_cam;
+        Quaterniond vio_q_cam;
 
-    vio_t_cam = vio_t ;//+ vio_q * tic;
-    vio_q_cam = vio_q ;//* qic;
-    Eigen::Matrix3d vio_R=Eigen::Matrix3d(vio_q);
+        vio_t_cam = vio_t;//+ vio_q * tic;
+        vio_q_cam = vio_q;//* qic;
+        Eigen::Matrix3d vio_R = Eigen::Matrix3d(vio_q);
 
-    cameraposevisual.reset();
-    cameraposevisual.add_pose(vio_t_cam, vio_q_cam);
-    cameraposevisual.publish_by(pub_camera_pose_visual, odometry.header);
-    KeyFrame* keyframe = new KeyFrame(camPose[0], frame_index, vio_t, vio_R);   //应该是生成fast特征点了，用于DBW2中的query
-
-    std::cout<<"index="<<index;
-    if(0)//(index>300 && index<302)
-    {
-        posegraph.addKeyFrame_uisee(keyframe, 1);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
-        posegraph.optimize6DoF_uisee();
+        cameraposevisual.reset();
+        cameraposevisual.add_pose(vio_t_cam, vio_q_cam);
+        cameraposevisual.publish_by(pub_camera_pose_visual, odometry.header);
+        if(camPoseLis[i][0]<old_time  &&  camPoseLis[i+1][0]>old_time)
+        {
+            std::cout<<"camPoseLis[i][0] "<<camPoseLis[i][0]<<" camPoseLis[i+1][0]"<<camPoseLis[i+1][0]<<std::endl;
+            loop_index_uisee=i;
+        }
+        std::cout << "index=" << index;
+        if (camPoseLis[i][0]<cur_time  &&  camPoseLis[i+1][0]>cur_time)//(index>300 && index<302)
+        {
+            KeyFrame *keyframe = new KeyFrame(camPose[0], frame_index, vio_t, vio_R,loop_index_uisee);   //应该是生成fast特征点了，用于DBW2中的query
+            posegraph.addKeyFrame_uisee(keyframe, 1);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
+            posegraph.optimize6DoF_uisee();
+        } else //if(index<302)
+        {
+            KeyFrame *keyframe = new KeyFrame(camPose[0], frame_index, vio_t, vio_R,-1);   //应该是生成fast特征点了，用于DBW2中的query
+            posegraph.addKeyFrame_uisee(keyframe, 0);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
+        }
+        usleep(1000);
     }
-    else //if(index<302)
-        posegraph.addKeyFrame_uisee(keyframe, 0);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
 }
 
 ////订阅主节点发布的相机和IMU位姿变换 imu和相机之间的外参R，以imu为参考
@@ -415,7 +377,40 @@ void command()
         std::this_thread::sleep_for(dura);
     }
 }
-void loade_image()
+
+void find_cloast(std::vector<std::vector<double>> &imageOdomList)
+{
+    size_t Lsize=imageOdomList.size()-1;
+    double distance=0.1;
+    double time_dis=10;
+    int max=0;
+    for(int i=0;i<Lsize;i++){
+        for (int j = i; j < Lsize; j++) {
+//            std::cout<<"time_dis  "<<int(imageOdomList[j][0]-imageOdomList[i][0])<<std::endl;
+            if(imageOdomList[j][0]-imageOdomList[i][0]<time_dis)
+                continue;
+            if(abs(imageOdomList[i][1]-imageOdomList[j][1])<distance
+                && abs(imageOdomList[i][2]-imageOdomList[j][2])<distance
+                && abs(imageOdomList[i][3]-imageOdomList[j][3])<distance){
+                if(j-i>max)
+                    max=j-i;
+                std::cout<<"idx_dif="<<j-i<<"-------------------------------"<<std::endl;
+                std::cout<<"finded old_kf  "<<"idx="<<i<<"  "<<std::setprecision(17)<<imageOdomList[i][0]<<" : ";
+                for(int m=1;m<8;m++) {
+                    std::cout<<std::setprecision(17)<<imageOdomList[i][m]<<"  ";
+                }
+                std::cout<<" "<<std::endl;
+                std::cout<<"finded loop  "<<"idx="<<j<<std::setprecision(17)<<imageOdomList[j][0]<<" : ";
+                for(int m=1;m<8;m++) {
+                    std::cout<<imageOdomList[j][m]<<"  ";
+                }
+                std::cout<<" "<<std::endl;
+            }
+        }
+    }
+    std::cout<<"max="<<max<<std::endl;
+}
+void loade_odom()
 {
 
 #if 1
@@ -453,13 +448,13 @@ void loade_image()
                 continue;
         }
         odomList.push_back(odom_);
-        vio_callback(odom_,idx);
         if(odom_[0]>1596529072);
 //            posegraph.addKeyFrame_uisee(odom_,true);
         std::chrono::milliseconds dura(5);
-        usleep(10000);
         idx++;
     }
+    vio_callback(odomList,idx);
+    std::cout<<"odom_size"<<odomList.size()<<std::endl;
     fileOdom.close();
     while(!fileCamOdom.eof())
     {
@@ -473,11 +468,68 @@ void loade_image()
         }
         camOdomList.push_back(odom_);
     }
+    find_cloast(camOdomList);
     fileCamOdom.close();
-#endif
 
+
+#endif
 }
 
+FeatureTracker featureTracker;
+void loade_img()
+{
+
+#if 0
+    std::string pathOdom="/media/qcx/D/work/20200804_car23_imu_can_camera_yahui/L1/odom_test.txt";
+    std::string pathCamOdom="/media/qcx/D/work/20200804_car23_imu_can_camera_yahui/KeyFrameTrajectory_uisee_l1.txt";
+#else
+    string strPathToSequence="/home/uisee/20200422_car8_can_imu_camera_yahui/dump_images/image_capturer_0";;
+    vector<string> vstrImageFilenames;
+    vector<double> vTimestamps;
+#endif
+    ifstream fTimes;
+    string strPathTimeFile = strPathToSequence + "/image_name.txt";
+    fTimes.open(strPathTimeFile.c_str());
+    vector<string> imageNameList;
+
+    while(!fTimes.eof())
+    {
+        string s;
+        getline(fTimes,s);
+        if(!s.empty())
+        {
+            stringstream ss;
+            string timeStr=s.substr(0,16);
+            ss << timeStr;
+            double t;
+            ss >> t;
+            vTimestamps.push_back(t);
+            imageNameList.push_back(s);
+        }
+    }
+
+    string strPrefixLeft = strPathToSequence;
+
+    const int nTimes = vTimestamps.size();
+    vstrImageFilenames.resize(nTimes);
+    std::cout<<featureTracker.stereo_cam<<std::endl;
+    for(int i=0; i<nTimes; i++)
+    {
+//        stringstream ss;
+//        ss << setfill('0') << setw(6) << i;
+//        vstrImageFilenames[i] = strPrefixLeft + ss.str() + ".png";
+        vstrImageFilenames[i]=strPrefixLeft+"/"+imageNameList[i];
+        cv::Mat img;
+        img=cv::imread(vstrImageFilenames[i],CV_LOAD_IMAGE_GRAYSCALE);
+        cv::imshow("img",img);
+        cv::waitKey(1);
+        map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
+        featureFrame = featureTracker.trackImage(10, img);
+        KeyFrame *keyframe=new KeyFrame(vTimestamps[i], i,img,featureTracker.cur_pts,featureTracker.cur_un_pts,0);
+        posegraph.addKeyFrame_uisee(keyframe, 1,1);//第二个参数代表是需要回环检测detect_loop 提取的FAST特征点
+    }
+
+}
 //闭环检测中每一个关键帧有两类特征点：
 //goodFeatureToTrack检测到的点及光流track到的点，这些点在FeatureTracker类中得到
 //        KeyFrame类中提取的FAST特征点
@@ -506,7 +558,7 @@ int main(int argc, char **argv)
                "/home/tony-ws1/catkin_ws/src/VINS-Fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
         return 0;
     }
-    loade_image();
+
     
     string config_file = argv[1];
     printf("config_file: %s\n", argv[1]);
@@ -540,6 +592,7 @@ int main(int argc, char **argv)
     std::string cam0Path = configPath + "/" + cam0Calib;
     printf("cam calib path: %s\n", cam0Path.c_str());
     m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(cam0Path.c_str());
+    CAM_NAMES.push_back(cam0Path);
 
     fsSettings["image0_topic"] >> IMAGE_TOPIC;        
     fsSettings["pose_graph_save_path"] >> POSE_GRAPH_SAVE_PATH;
@@ -547,10 +600,15 @@ int main(int argc, char **argv)
     fsSettings["save_image"] >> DEBUG_IMAGE;
 
     LOAD_PREVIOUS_POSE_GRAPH = fsSettings["load_previous_pose_graph"];
-    VINS_RESULT_PATH = VINS_RESULT_PATH + "/vio_loop.csv";
+    VINS_RESULT_PATH = VINS_RESULT_PATH + "wheels_odom.txt";
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
 
+    config_file = argv[1];
+//    readParameters(config_file);
+//    loade_odom();//读入里程计并优化
+    featureTracker.readIntrinsicParameter(CAM_NAMES);
+    loade_img();//读入图像
     int USE_IMU = fsSettings["imu"];
     posegraph.setIMUFlag(USE_IMU);//在这里又启动了一个线程
     fsSettings.release();
@@ -576,8 +634,8 @@ int main(int argc, char **argv)
     ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
     ros::Subscriber sub_pose = n.subscribe("/vins_estimator/keyframe_pose", 2000, pose_callback);
     ros::Subscriber sub_extrinsic = n.subscribe("/vins_estimator/extrinsic", 2000, extrinsic_callback);
-    ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
-    ros::Subscriber sub_margin_point = n.subscribe("/vins_estimator/margin_cloud", 2000, margin_point_callback);
+//    ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
+//    ros::Subscriber sub_margin_point = n.subscribe("/vins_estimator/margin_cloud", 2000, margin_point_callback);
 
 
 

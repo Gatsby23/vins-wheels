@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5.1)
 project(loop_fusion)
 
 set(CMAKE_BUILD_TYPE "Debug")
@@ -49,7 +49,8 @@ target_link_libraries(loop_fusion_node ${catkin_LIBRARIES}  ${OpenCV_LIBS} ${CER
 add_executable(loop_fusion_node_uisee
         src/pose_graph_node_uisee.cpp
         src/pose_graph_uisee.cpp
-        src/keyframe.cpp
+        src/keyframe_uisee.cpp
+
         src/utility/CameraPoseVisualization.cpp
         src/ThirdParty/DBoW/BowVector.cpp
         src/ThirdParty/DBoW/FBrief.cpp
@@ -60,6 +61,8 @@ add_executable(loop_fusion_node_uisee
         src/ThirdParty/DUtils/Timestamp.cpp
         src/ThirdParty/DVision/BRIEF.cpp
         src/ThirdParty/VocabularyBinary.cpp
+#        src/parameters/parameters.cpp
+        src/featureTracker/feature_tracker.cpp
         )
 target_link_libraries(loop_fusion_node_uisee ${catkin_LIBRARIES}  ${OpenCV_LIBS} ${CERES_LIBRARIES})
 

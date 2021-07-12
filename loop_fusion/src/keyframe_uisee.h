@@ -51,7 +51,7 @@ public:
 			 cv::Mat &_image, int _loop_index, Eigen::Matrix<double, 8, 1 > &_loop_info,
 			 vector<cv::KeyPoint> &_keypoints, vector<cv::KeyPoint> &_keypoints_norm, vector<BRIEF::bitset> &_brief_descriptors);
     KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i,int _loop_index);//uisee
-    KeyFrame(double _time_stamp, int _index,  cv::Mat &_image,int _sequence);//uisee
+    KeyFrame(double _time_stamp, int _index,  cv::Mat &_image,vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_norm,int _sequence);//uisee
 	bool findConnection(KeyFrame* old_kf);
 	void computeWindowBRIEFPoint();
 	void computeBRIEFPoint();

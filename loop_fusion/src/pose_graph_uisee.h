@@ -25,7 +25,7 @@
 #include <nav_msgs/Odometry.h>
 #include <stdio.h>
 #include <ros/ros.h>
-#include "keyframe.h"
+#include "keyframe_uisee.h"
 #include "utility/tic_toc.h"
 #include "utility/utility.h"
 #include "utility/CameraPoseVisualization.h"
@@ -50,6 +50,7 @@ public:
 	~PoseGraph();
 	void registerPub(ros::NodeHandle &n);
     void addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop);
+    void addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop,bool flag_input_img);//视觉检测回环
 	void loadKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop);
 	void loadVocabulary(std::string voc_path);
 	void setIMUFlag(bool _use_imu);

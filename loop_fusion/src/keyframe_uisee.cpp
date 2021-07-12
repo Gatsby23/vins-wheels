@@ -9,7 +9,7 @@
  * Author: Qin Tong (qintonguav@gmail.com)
  *******************************************************/
 
-#include "keyframe.h"
+#include "keyframe_uisee.h"
 
 template <typename Derived>
 static void reduceVector(vector<Derived> &v, vector<uchar> status)//重新调整向量大小
@@ -112,7 +112,7 @@ KeyFrame::KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3
 }
 
 // uisee create keyframe online
-KeyFrame::KeyFrame(double _time_stamp, int _index,  cv::Mat &_image,vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_norm, int _sequence)
+KeyFrame::KeyFrame(double _time_stamp, int _index,  cv::Mat &_image,vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_normal,int _sequence)
 {
     time_stamp = _time_stamp;
     index = _index;

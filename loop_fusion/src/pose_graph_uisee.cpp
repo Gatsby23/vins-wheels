@@ -65,7 +65,7 @@ void PoseGraph::loadVocabulary(std::string voc_path)
     db.setVocabulary(*voc, false, 0);
 }
 
-void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop)
+void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop)//直接就回环  不做检测，为了做里程计回环而写
 {
     //shift to base frame
     Vector3d vio_P_cur;
@@ -94,7 +94,7 @@ void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop)
         TicToc tmp_t;
         //回环检测，返回回环候选帧的索引
 //        loop_index = detectLoop(cur_kf, cur_kf->index);
-        loop_index = 1;
+        loop_index = cur_kf->loop_index;
     }
     else
     {
@@ -128,8 +128,46 @@ void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop)
             Quaterniond relative_q;
             relative_t = Eigen::Vector3d::Zero();//cur_kf->getLoopRelativeT();
             relative_q = Eigen::Quaterniond(1,0,0,0);//(cur_kf->getLoopRelativeQ()).toRotationMatrix();
+            Eigen::Matrix4d H_odom_cam;
+            H_odom_cam << -0.999852  , -0.016876,  0.00345549 , -0.0297031,
+            -0.00318591  , -0.015975  , -0.999867   ,-0.508023,
+            0.016929  ,  -0.99973  , 0.0159189    ,       0,
+            0    ,       0    ,       0        ,   1;
+            double scale = 12.270911292620692;//
+//            double scale =  10.2579;
+            Eigen::Matrix3d R_cam_odom=H_odom_cam.matrix().block<3,3>(0, 0);
+            Eigen::Quaterniond q_cam_odom(R_cam_odom);
+            Eigen::Quaterniond old_q,cur_q;
+            old_q=Eigen::Quaterniond (0.95435740000000002,-0.0054029000000000004,0.2986181,0.0001283);
+//            old_q=old_q*q_cam_odom.inverse();
+            Eigen::Matrix3d R_old=Eigen::Matrix3d(old_q);
 
-            cur_kf->loop_info << relative_t.x(), relative_t.y(), relative_t.z(),
+            cur_q=Eigen::Quaterniond (0.79456740000000003,-0.016074000000000001,0.60682400000000003,-0.0129926);
+//            cur_q=cur_q*q_cam_odom.inverse();
+            Eigen::Matrix3d R_cur=Eigen::Matrix3d(cur_q);
+
+            Eigen::Vector3d t_old,t_cur;
+            t_old<<-0.062686000000000006,-0.0042929999999999999,-0.23250609999999999;
+            t_cur<<-0.085717399999999999,-0.0066736,-0.3196445;
+            t_old=scale*t_old;
+            t_cur=scale*t_cur;
+
+            Eigen::Matrix4d T_old,T_cur;
+            T_old=Eigen::Matrix4d::Identity();
+            T_cur=Eigen::Matrix4d::Identity();
+            T_old.matrix().block<3,3>(0,0)=R_old;
+            T_cur.matrix().block<3,3>(0,0)=R_cur;
+            T_old.matrix().block<3,1>(0,3)=t_old;
+            T_cur.matrix().block<3,1>(0,3)=t_cur;
+
+            Eigen::Matrix4d T_old_cur;
+            T_old_cur=H_odom_cam*T_old.inverse()*T_cur*H_odom_cam.inverse();
+
+            Eigen::Matrix3d relative_R=T_old_cur.matrix().block<3,3>(0,0);
+            relative_q=Eigen::Quaterniond (relative_R);
+//            relative_q=old_q.inverse() * cur_q;
+            relative_t=T_old_cur.matrix().block<3,1>(0,3);
+            cur_kf->loop_info << relative_t.x() ,relative_t.y(), relative_t.z(),
             relative_q.w(), relative_q.x(), relative_q.y(), relative_q.z(),
             0;
 
@@ -278,6 +316,258 @@ void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop)
 //    std::cout<<"pub_path end"<<std::endl;
 
 }
+void PoseGraph::addKeyFrame_uisee(KeyFrame* cur_kf, bool flag_detect_loop,bool flag_input_img)//视觉检测回环
+{
+    //shift to base frame
+    Vector3d vio_P_cur;
+    Matrix3d vio_R_cur;
+    if (sequence_cnt != cur_kf->sequence)//如果sequence_cnt != cur_kf->sequence，则新建一个新的图像序列;
+    {
+        sequence_cnt++;
+        sequence_loop.push_back(0);
+        w_t_vio = Eigen::Vector3d(0, 0, 0);// w_t_vio,w_r_vio描述的就是当前序列的第一帧，与世界坐标系之间的转换关系。
+        w_r_vio = Eigen::Matrix3d::Identity();
+        m_drift.lock();
+        t_drift = Eigen::Vector3d(0, 0, 0);
+        r_drift = Eigen::Matrix3d::Identity();
+        m_drift.unlock();
+    }
+    //获取当前帧的位姿vio_P_cur、vio_R_cur并更新
+    cur_kf->getVioPose(vio_P_cur, vio_R_cur);
+    vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
+    vio_R_cur = w_r_vio *  vio_R_cur;
+    cur_kf->updateVioPose(vio_P_cur, vio_R_cur);
+    cur_kf->index = global_index;
+    global_index++;
+    int loop_index = -1;
+    if (flag_detect_loop)
+    {
+        TicToc tmp_t;
+        //回环检测，返回回环候选帧的索引
+        std::cout<<"cur_kf->index="<<cur_kf->index<<std::endl;
+        loop_index = detectLoop(cur_kf, cur_kf->index);
+    }
+    else
+    {
+        addKeyFrameIntoVoc_uisee(cur_kf);
+    }
+    //得到匹配上关键帧后，经过计算相对位姿，并把当前帧号记录到全局优化内
+    //如果存在回环候选帧，将当前帧与回环帧进行描述子匹配并计算位姿，并执行优化
+    if (loop_index != -1)
+    {
+        printf(" %d detect loop with %d \n", cur_kf->index, loop_index);
+        KeyFrame* old_kf = getKeyFrame(loop_index);//返回对应关键帧的地址,//获取回环候选帧
+        // findConnection 是为了计算相对位姿，最主要的就是利用了PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old)函数，
+        //并且它负责把匹配好的点发送到estimator节点中去
+        if (1)//(cur_kf->findConnection(old_kf))////当前帧与回环候选帧进行描述子匹配  来确定是否是一个真正的闭环
+        {
+            cur_kf->has_loop = true;
+            cur_kf->loop_index = old_kf->index;
+//            loop_info << relative_t.x(), relative_t.y(), relative_t.z(),
+//                    relative_q.w(), relative_q.x(), relative_q.y(), relative_q.z(),
+//                    relative_yaw;
+            if (earliest_loop_index > loop_index || earliest_loop_index == -1)//earliest_loop_index为最早的回环候选帧
+                earliest_loop_index = loop_index;
+
+            Vector3d w_P_old, w_P_cur, vio_P_cur;
+            Matrix3d w_R_old, w_R_cur, vio_R_cur;
+            old_kf->getVioPose(w_P_old, w_R_old);
+            cur_kf->getVioPose(vio_P_cur, vio_R_cur);
+
+            ////获取当前帧与回环帧的相对位姿relative_q、relative_t
+            Vector3d relative_t;
+            Quaterniond relative_q;
+            relative_t = Eigen::Vector3d::Zero();//cur_kf->getLoopRelativeT();
+            relative_q = Eigen::Quaterniond(1,0,0,0);//(cur_kf->getLoopRelativeQ()).toRotationMatrix();
+            Eigen::Matrix4d H_odom_cam;
+            H_odom_cam << -0.999852  , -0.016876,  0.00345549 , -0.0297031,
+                    -0.00318591  , -0.015975  , -0.999867   ,-0.508023,
+                    0.016929  ,  -0.99973  , 0.0159189    ,       0,
+                    0    ,       0    ,       0        ,   1;
+            double scale = 12.270911292620692;//
+//            double scale =  10.2579;
+            Eigen::Matrix3d R_cam_odom=H_odom_cam.matrix().block<3,3>(0, 0);
+            Eigen::Quaterniond q_cam_odom(R_cam_odom);
+            Eigen::Quaterniond old_q,cur_q;
+            old_q=Eigen::Quaterniond (0.95435740000000002,-0.0054029000000000004,0.2986181,0.0001283);
+//            old_q=old_q*q_cam_odom.inverse();
+            Eigen::Matrix3d R_old=Eigen::Matrix3d(old_q);
+
+            cur_q=Eigen::Quaterniond (0.79456740000000003,-0.016074000000000001,0.60682400000000003,-0.0129926);
+//            cur_q=cur_q*q_cam_odom.inverse();
+            Eigen::Matrix3d R_cur=Eigen::Matrix3d(cur_q);
+
+            Eigen::Vector3d t_old,t_cur;
+            t_old<<-0.062686000000000006,-0.0042929999999999999,-0.23250609999999999;
+            t_cur<<-0.085717399999999999,-0.0066736,-0.3196445;
+            t_old=scale*t_old;
+            t_cur=scale*t_cur;
+
+            Eigen::Matrix4d T_old,T_cur;
+            T_old=Eigen::Matrix4d::Identity();
+            T_cur=Eigen::Matrix4d::Identity();
+            T_old.matrix().block<3,3>(0,0)=R_old;
+            T_cur.matrix().block<3,3>(0,0)=R_cur;
+            T_old.matrix().block<3,1>(0,3)=t_old;
+            T_cur.matrix().block<3,1>(0,3)=t_cur;
+
+            Eigen::Matrix4d T_old_cur;
+            T_old_cur=H_odom_cam*T_old.inverse()*T_cur*H_odom_cam.inverse();
+
+            Eigen::Matrix3d relative_R=T_old_cur.matrix().block<3,3>(0,0);
+            relative_q=Eigen::Quaterniond (relative_R);
+//            relative_q=old_q.inverse() * cur_q;
+            relative_t=T_old_cur.matrix().block<3,1>(0,3);
+            cur_kf->loop_info << relative_t.x() ,relative_t.y(), relative_t.z(),
+                    relative_q.w(), relative_q.x(), relative_q.y(), relative_q.z(),
+                    0;
+
+
+            //重新计算当前帧位姿w_P_cur、w_R_cur
+            w_P_cur = w_R_old * relative_t + w_P_old;
+            w_R_cur = w_R_old * relative_q;
+
+            //回环得到的位姿和VIO位姿之间的偏移量shift_r、shift_t
+            double shift_yaw;
+            Matrix3d shift_r;
+            Vector3d shift_t;
+            // 根据old frame 和相对位姿能计算出当前帧位姿，也就能得出和已知当前帧位姿的差别
+            //分别计算出shift_r, shift_t，用来更新其他帧位姿
+
+            if(use_imu)
+            {
+                shift_yaw = Utility::R2ypr(w_R_cur).x() - Utility::R2ypr(vio_R_cur).x();
+                shift_r = Utility::ypr2R(Vector3d(shift_yaw, 0, 0));
+            }
+            else
+                shift_r = w_R_cur * vio_R_cur.transpose();//旋转矩阵的转置等于逆
+            shift_t = w_P_cur - w_R_cur * vio_R_cur.transpose() * vio_P_cur;
+            // shift vio pose of whole sequence to the world frame将整个序列的vio姿势转移到世界坐标系
+            if (old_kf->sequence != cur_kf->sequence && sequence_loop[cur_kf->sequence] == 0)//正常回环检测不执行这个
+            {
+                w_r_vio = shift_r;
+                w_t_vio = shift_t;
+                vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;//这里是不是多了？
+                vio_R_cur = w_r_vio *  vio_R_cur;
+                cur_kf->updateVioPose(vio_P_cur, vio_R_cur);
+                list<KeyFrame*>::iterator it = keyframelist.begin();
+                for (; it != keyframelist.end(); it++)
+                {
+                    if((*it)->sequence == cur_kf->sequence)
+                    {
+                        Vector3d vio_P_cur;
+                        Matrix3d vio_R_cur;
+                        (*it)->getVioPose(vio_P_cur, vio_R_cur);
+                        vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
+                        vio_R_cur = w_r_vio *  vio_R_cur;
+                        (*it)->updateVioPose(vio_P_cur, vio_R_cur);
+                    }
+                }
+                sequence_loop[cur_kf->sequence] = 1;
+            }
+            //将当前帧放入优化队列中
+            m_optimize_buf.lock();
+            optimize_buf.push(cur_kf->index);//push后，optimize6DoF 6自由度位姿变换线程开始执行优化的程序  std::thread(&PoseGraph::optimize6DoF, this);
+            m_optimize_buf.unlock();
+        }
+    }
+
+
+    m_keyframelist.lock();
+    Vector3d P;
+    Matrix3d R;
+//    P.x()=odom_[1];P.y()=odom_[2];P.z()=odom_[3];
+    cur_kf->getVioPose(P, R); //获取VIO当前帧的位姿P、R，根据偏移量得到实际位姿
+    P = r_drift * P + t_drift;//在optimize6DoF线程中进行了赋值
+    R = r_drift * R;
+//    std::cout<<"r_drift="<<r_drift<<"  t_drift="<<t_drift<<std::endl;
+//    cur_kf->updatePose(P, R);//更新当前帧的位姿P、R到T_w_i R_w_i
+
+    //发布path[sequence_cnt]
+
+    std::cout<<"cur_kf->time_stamp="<<std::setprecision(17)<<cur_kf->time_stamp<<std::endl;
+    Quaterniond Q{R};
+    geometry_msgs::PoseStamped pose_stamped;
+    pose_stamped.header.stamp =ros::Time(cur_kf->time_stamp);// ros::Time::now();//
+    pose_stamped.header.frame_id = "world";
+    pose_stamped.pose.position.x = P.x() + VISUALIZATION_SHIFT_X;
+    pose_stamped.pose.position.y = P.y() + VISUALIZATION_SHIFT_Y;
+    pose_stamped.pose.position.z = P.z();
+    pose_stamped.pose.orientation.x = Q.x();
+    pose_stamped.pose.orientation.y = Q.y();
+    pose_stamped.pose.orientation.z = Q.z();
+    pose_stamped.pose.orientation.w = Q.w();
+    path[sequence_cnt].poses.push_back(pose_stamped);
+    path[sequence_cnt].header = pose_stamped.header;
+
+    //保存闭环轨迹到VINS_RESULT_PATH
+    if (SAVE_LOOP_PATH)
+    {
+        ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
+        loop_path_file.setf(ios::fixed, ios::floatfield);
+        loop_path_file.precision(0);
+        loop_path_file << cur_kf->time_stamp << ",";
+        loop_path_file.precision(5);
+        loop_path_file  << P.x() << ","
+                        << P.y() << ","
+                        << P.z() << ","
+                        << Q.w() << ","
+                        << Q.x() << ","
+                        << Q.y() << ","
+                        << Q.z() << ","
+                        << endl;
+        loop_path_file.close();
+    }
+    //draw local connection
+    if (SHOW_S_EDGE)
+    {
+        list<KeyFrame*>::reverse_iterator rit = keyframelist.rbegin();
+        for (int i = 0; i < 4; i++)
+        {
+            if (rit == keyframelist.rend())
+                break;
+            Vector3d conncected_P;
+            Matrix3d connected_R;
+            if((*rit)->sequence == cur_kf->sequence)
+            {
+                (*rit)->getPose(conncected_P, connected_R);
+                posegraph_visualization->add_edge(P, conncected_P);
+            }
+            rit++;
+        }
+    }
+
+    //当前帧与其回环帧连线
+    if (SHOW_L_EDGE)
+    {
+        if (cur_kf->has_loop)
+        {
+            //printf("has loop \n");
+            KeyFrame* connected_KF = getKeyFrame(cur_kf->loop_index);
+            Vector3d connected_P,P0;
+            Matrix3d connected_R,R0;
+            connected_KF->getPose(connected_P, connected_R);
+            //cur_kf->getVioPose(P0, R0);
+            cur_kf->getPose(P0, R0);
+            if(cur_kf->sequence > 0)
+            {
+                //printf("add loop into visual \n");
+                posegraph_visualization->add_loopedge(P0, connected_P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0));
+            }
+
+        }
+    }
+
+    //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
+    //发送path主题数据，用以显示
+    keyframelist.push_back(cur_kf);
+//    std::cout<<"pub_path"<<std::endl;
+    publish_uisee();
+    m_keyframelist.unlock();
+//    std::cout<<"pub_path end"<<std::endl;
+
+}
+
 
 
 void PoseGraph::loadKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
@@ -393,10 +683,10 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)//输入关键帧�
     //第一个参数是描述子，第二个是检测结果，第三个是结果个数，第四个是结果帧号必须小于此  ret=1 result:<EntryId: 18, Score: 0.113851>
     db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
     printf("query time: %f\n", t_query.toc());//输出查询的时间
-    cout << "  Searching for Image " << frame_index << ". " << ret << endl;
+    cout << "  Searching for Image " << frame_index << ". " << ret <<"   db.size="<<db.size()<< endl;
 
     TicToc t_add;
-//    db.add(keyframe->brief_descriptors);//属于namespace DBoW2
+    db.add(keyframe->brief_descriptors);//属于namespace DBoW2
     //printf("add feature time: %f", t_add.toc());
     // ret[0] is the nearest neighbour's score. threshold change with neighour score
     bool find_loop = false;
@@ -1062,16 +1352,17 @@ void PoseGraph::updatePath()
         {
             ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
             loop_path_file.setf(ios::fixed, ios::floatfield);
-            loop_path_file.precision(0);
-            loop_path_file << (*it)->time_stamp * 1e9 << ",";
+            loop_path_file.precision(17);
+            loop_path_file << (*it)->time_stamp<< " ";
             loop_path_file.precision(5);
-            loop_path_file  << P.x() << ","
-                  << P.y() << ","
-                  << P.z() << ","
-                  << Q.w() << ","
-                  << Q.x() << ","
-                  << Q.y() << ","
-                  << Q.z() << ","
+            loop_path_file  << P.x() << " "
+                  << P.y() << " "
+//                  << P.z() << ","
+                    << 0.0 << " "
+                    << Q.x() << " "
+                  << Q.y() << " "
+                  << Q.z() << " "
+                  << Q.w() << " "
                   << endl;
             loop_path_file.close();
         }
