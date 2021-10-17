@@ -85,9 +85,9 @@ int main(int argc, char** argv)
 		{
 			printf("\nprocess image %d\n", (int)i);
 			stringstream ss;
-			ss << setfill('0') << setw(10) << i;
-			leftImagePath = dataPath + "image_00/data/" + ss.str() + ".png";
-			rightImagePath = dataPath + "image_01/data/" + ss.str() + ".png";
+			ss << setfill('0') << setw(6) << i;
+			leftImagePath = dataPath + "image_0/" + ss.str() + ".png";
+			rightImagePath = dataPath + "image_1/" + ss.str() + ".png";
 			//printf("%lu  %f \n", i, imageTimeList[i]);
 			//printf("%s\n", leftImagePath.c_str() );
 			//printf("%s\n", rightImagePath.c_str() );
