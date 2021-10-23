@@ -282,7 +282,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     {
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
         if(!prev_img.empty())showTrack_qiao(cur_img,prev_img,ids, cur_pts, prev_pts, prevLeftPtsMap);
-        //cv::waitKey(1);
+        cv::waitKey(1);
     }
 
     // 更新帧、特征点

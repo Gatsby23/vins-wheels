@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.5.1)
 project(vins)
 
+#set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_BUILD_TYPE "Release")
+
 set(CMAKE_CXX_FLAGS "-std=c++11")
 #-DEIGEN_USE_MKL_ALL")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
@@ -70,4 +72,8 @@ target_link_libraries(nclt_sfm vins_lib)
 
 add_executable(uisee_sfm src/uiseeSfm.cpp)
 target_link_libraries(uisee_sfm vins_lib)
+
+set(SOURCE_FILES src/KAISTSfm.cpp)
+add_executable(kaist_sfm ${SOURCE_FILES} )
+target_link_libraries(kaist_sfm vins_lib)
 

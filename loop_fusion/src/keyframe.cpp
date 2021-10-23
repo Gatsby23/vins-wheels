@@ -112,32 +112,32 @@ KeyFrame::KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3
 }
 
 // uisee create keyframe online
-KeyFrame::KeyFrame(double _time_stamp, int _index,  cv::Mat &_image,vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_norm, int _sequence)
-{
-    time_stamp = _time_stamp;
-    index = _index;
-//    vio_T_w_i = _vio_T_w_i;
-//    vio_R_w_i = _vio_R_w_i;
-    T_w_i = vio_T_w_i;
-    R_w_i = vio_R_w_i;
-    origin_vio_T = vio_T_w_i;
-    origin_vio_R = vio_R_w_i;
-    image = _image.clone();
-    cv::resize(image, thumbnail, cv::Size(80, 60));
-//    point_3d = _point_3d;
-//    point_2d_uv = _point_2d_uv;
-//    point_2d_norm = _point_2d_norm;
-//    point_id = _point_id;
-    has_loop = false;
-    loop_index = -1;
-    has_fast_point = false;
-    loop_info << 0, 0, 0, 0, 0, 0, 0, 0;
-    sequence = _sequence;
-    computeWindowBRIEFPoint();
-    computeBRIEFPoint();
-    if(!DEBUG_IMAGE)
-        image.release();
-}
+//KeyFrame::KeyFrame(double _time_stamp, int _index,  cv::Mat &_image,vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_norm, int _sequence)
+//{
+//    time_stamp = _time_stamp;
+//    index = _index;
+////    vio_T_w_i = _vio_T_w_i;
+////    vio_R_w_i = _vio_R_w_i;
+//    T_w_i = vio_T_w_i;
+//    R_w_i = vio_R_w_i;
+//    origin_vio_T = vio_T_w_i;
+//    origin_vio_R = vio_R_w_i;
+//    image = _image.clone();
+//    cv::resize(image, thumbnail, cv::Size(80, 60));
+////    point_3d = _point_3d;
+////    point_2d_uv = _point_2d_uv;
+////    point_2d_norm = _point_2d_norm;
+////    point_id = _point_id;
+//    has_loop = false;
+//    loop_index = -1;
+//    has_fast_point = false;
+//    loop_info << 0, 0, 0, 0, 0, 0, 0, 0;
+//    sequence = _sequence;
+//    computeWindowBRIEFPoint();
+//    computeBRIEFPoint();
+//    if(!DEBUG_IMAGE)
+//        image.release();
+//}
 void KeyFrame::computeWindowBRIEFPoint()
 {
 	BriefExtractor extractor(BRIEF_PATTERN_FILE.c_str());

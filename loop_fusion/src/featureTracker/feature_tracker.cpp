@@ -522,7 +522,7 @@ void FeatureTracker::showTrack_qiao(const cv::Mat &cur_img_,const cv::Mat prv_im
     }
     cv::Mat matchs_;
 //    cv::drawMatches(cur_img_2,curLeftPts,prv_img_2,curRightPts,matchs_,matchs_);
-    cv::imshow("left_right",cur_img_1);
+//    cv::imshow("left_right",cur_img_1);
     //cv::waitKey(0);
 }
 

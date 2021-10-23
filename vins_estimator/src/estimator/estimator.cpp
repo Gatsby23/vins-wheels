@@ -634,7 +634,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         TicToc t_solve;
         if(!USE_IMU)
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//pnp求位姿
-        f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化
+        f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化 depth
         optimization();//优化
         set<int> removeIndex;
         outliersRejection(removeIndex);
