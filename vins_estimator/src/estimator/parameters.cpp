@@ -17,6 +17,9 @@ double GYR_N, GYR_W;
 std::vector<Eigen::Matrix3d> RIC;
 std::vector<Eigen::Vector3d> TIC;
 
+std::vector<Eigen::Matrix3d> RIV;
+std::vector<Eigen::Vector3d> TIV;
+
 Eigen::Vector3d G{0.0, 0.0, 9.8};
 
 double BIAS_ACC_THRESHOLD;
@@ -35,6 +38,7 @@ double TD;
 int NUM_OF_CAM;
 int STEREO;
 int USE_IMU;
+int USE_WHEELS;
 int MULTIPLE_THREAD;
 map<int, Eigen::Vector3d> pts_gt;
 std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
@@ -90,6 +94,7 @@ void readParameters(std::string config_file)
     MULTIPLE_THREAD = fsSettings["multiple_thread"];
 
     USE_IMU = fsSettings["imu"];
+    USE_WHEELS = fsSettings["wheels"];
     printf("USE_IMU: %d\n", USE_IMU);
     if(USE_IMU)
     {
@@ -137,6 +142,13 @@ void readParameters(std::string config_file)
         cv::cv2eigen(cv_T, T);
         RIC.push_back(T.block<3, 3>(0, 0));
         TIC.push_back(T.block<3, 1>(0, 3));
+
+        cv::Mat cv_T_vel;
+        fsSettings["body_T_vel"] >> cv_T_vel;
+        Eigen::Matrix4d T_vel;
+        cv::cv2eigen(cv_T_vel, T_vel);
+        RIV.push_back(T_vel.block<3, 3>(0, 0));
+        TIV.push_back(T_vel.block<3, 1>(0, 3));
     } 
     
     NUM_OF_CAM = fsSettings["num_of_cam"];

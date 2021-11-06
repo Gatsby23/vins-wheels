@@ -156,7 +156,7 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
 
         double dt = frame_j->second.pre_integration->sum_dt;
         //
-        // A是论文中的H矩阵 b是论文中的观测矩阵
+        // A是论文中的H矩阵 b是论文中的观测矩阵z
         tmp_A.block<3, 3>(0, 0) = -dt * Matrix3d::Identity();
         tmp_A.block<3, 3>(0, 6) = frame_i->second.R.transpose() * dt * dt / 2 * Matrix3d::Identity();
         tmp_A.block<3, 1>(0, 9) = frame_i->second.R.transpose() * (frame_j->second.T - frame_i->second.T) / 100.0;     
@@ -188,14 +188,14 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
     A = A * 1000.0;
     b = b * 1000.0;
     x = A.ldlt().solve(b);//LDLT求最小二乘解  其实就是处理AT*A*x=AT*b问题
-    cout<<"A=\n"<<A<<endl;
-    cout<<"b= \n"<<b<<endl;
-    cout<<"x=\n"<<x<<endl;
+//    cout<<"A=\n"<<A<<endl;
+//    cout<<"b= \n"<<b<<endl;
+//    cout<<"x=\n"<<x<<endl;
     double s = x(n_state - 1) / 100.0;
     cout<<"s="<<s<<endl;
     ROS_DEBUG("estimated scale: %f", s);
     g = x.segment<3>(n_state - 4);
-    cout<<"g="<<g<<endl;
+    cout<<"g before RefineGravity ="<<g<<endl;
     ROS_DEBUG_STREAM(" result g     " << g.norm() << " " << g.transpose());
     if(fabs(g.norm() - G.norm()) > 0.5 || s < 0)
     {
@@ -205,6 +205,7 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
     RefineGravity(all_image_frame, g, x);//重力优化
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
+    cout<<"g after RefineGravity ="<<g<<endl;
     ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
     if(s < 0.0 )
         return false;   

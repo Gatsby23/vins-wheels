@@ -35,7 +35,7 @@ include_directories(
 
 catkin_package()
 
-add_library(vins_lib
+add_library(vins_lib2
     src/estimator/parameters.cpp
     src/estimator/estimator.cpp
     src/estimator/feature_manager.cpp
@@ -52,7 +52,7 @@ add_library(vins_lib
     src/initial/initial_sfm.cpp
     src/initial/initial_ex_rotation.cpp
     src/featureTracker/feature_tracker.cpp)
-target_link_libraries(vins_lib ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
+target_link_libraries(vins_lib2 ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 
 
 add_executable(vins_node src/rosNodeTest.cpp)
@@ -76,4 +76,7 @@ target_link_libraries(uisee_sfm vins_lib)
 set(SOURCE_FILES src/KAISTSfm.cpp)
 add_executable(kaist_sfm ${SOURCE_FILES} )
 target_link_libraries(kaist_sfm vins_lib)
+
+add_executable(kaist_viwo src/KAISTViwo.cpp )
+target_link_libraries(kaist_viwo vins_lib2)
 

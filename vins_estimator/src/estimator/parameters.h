@@ -34,6 +34,8 @@ extern double GYR_N, GYR_W;
 
 extern std::vector<Eigen::Matrix3d> RIC;
 extern std::vector<Eigen::Vector3d> TIC;
+extern std::vector<Eigen::Matrix3d> RIV;
+extern std::vector<Eigen::Vector3d> TIV;
 extern Eigen::Vector3d G;
 
 extern double BIAS_ACC_THRESHOLD;
@@ -51,6 +53,7 @@ extern int ROW, COL;
 extern int NUM_OF_CAM;
 extern int STEREO;
 extern int USE_IMU;
+extern int USE_WHEELS;//是否使用轮速计
 extern int MULTIPLE_THREAD;
 // pts_gt for debug purpose;
 extern map<int, Eigen::Vector3d> pts_gt;
@@ -79,7 +82,8 @@ enum StateOrder
     O_R = 3,
     O_V = 6,
     O_BA = 9,
-    O_BG = 12
+    O_BG = 12,
+    O_P_Vel = 15
 };
 
 enum NoiseOrder

@@ -18,7 +18,7 @@
 
 #include <ceres/ceres.h>
 
-class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
+class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 {
   public:
     IMUFactor() = delete;
@@ -66,14 +66,26 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
         }
 #endif
 
-        Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
-        residual = pre_integration->evaluate(Pi, Qi, Vi, Bai, Bgi,
-                                            Pj, Qj, Vj, Baj, Bgj);
+//        Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
+//        residual = pre_integration->evaluate(Pi, Qi, Vi, Bai, Bgi,
+//                                            Pj, Qj, Vj, Baj, Bgj);
+        Eigen::Map<Eigen::Matrix<double, 18, 1>> residual(residuals);
+        residual = pre_integration->evaluate_wheel(Pi, Qi, Vi, Bai, Bgi,
+                                             Pj, Qj, Vj, Baj, Bgj);
 
-        Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration->covariance.inverse()).matrixL().transpose();
+//        Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration->covariance.inverse()).matrixL().transpose();
         //sqrt_info.setIdentity();
-        residual = sqrt_info * residual;
-
+        Eigen::Matrix<double, 18, 18> sqrt_info_wheel=Eigen::LLT<Eigen::Matrix<double, 18, 18>>(pre_integration->covariance.inverse()).matrixL().transpose();;
+        std::cout<<"pre_integration->covariance:\n"<<setprecision(6)<<pre_integration->covariance<<endl;
+        std::cout<<"pre_integration->jacobian:\n"<<setprecision(6)<<pre_integration->jacobian<<endl;
+        std::cout<<"pre_integration->covariance.inverse():\n"<<setprecision(6)<<pre_integration->covariance.inverse()<<std::endl;
+        std::cout<<"sqrt_info_wheel:\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
+//        sqrt_info_wheel.setIdentity();
+//        sqrt_info_wheel.matrix().block<15,15>(0,0)=sqrt_info;
+//        residual = sqrt_info * residual;
+        std::cout<<"residual raw:\n"<<setprecision(6)<<residual<<endl;
+        residual = sqrt_info_wheel * residual;
+        std::cout<<"residual:\n"<<setprecision(6)<<residual<<endl;
         if (jacobians)
         {
             double sum_dt = pre_integration->sum_dt;
@@ -94,7 +106,7 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
 
             if (jacobians[0])
             {
-                Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> jacobian_pose_i(jacobians[0]);
+                Eigen::Map<Eigen::Matrix<double, 18, 7, Eigen::RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
 
                 jacobian_pose_i.block<3, 3>(O_P, O_P) = -Qi.inverse().toRotationMatrix();
@@ -109,7 +121,10 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
 
                 jacobian_pose_i.block<3, 3>(O_V, O_R) = Utility::skewSymmetric(Qi.inverse() * (G * sum_dt + Vj - Vi));
 
-                jacobian_pose_i = sqrt_info * jacobian_pose_i;
+                jacobian_pose_i.block<3,3>(O_P_Vel,O_P) = -Qi.inverse().toRotationMatrix();// 轮速计
+                jacobian_pose_i.block<3, 3>(O_P_Vel, O_R) = Utility::skewSymmetric(Qi.inverse() * ( Pj - Pi ));
+
+                jacobian_pose_i = sqrt_info_wheel * jacobian_pose_i;
 
                 if (jacobian_pose_i.maxCoeff() > 1e8 || jacobian_pose_i.minCoeff() < -1e8)
                 {
@@ -120,7 +135,7 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
             }
             if (jacobians[1])
             {
-                Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[1]);
+                Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[1]);
                 jacobian_speedbias_i.setZero();
                 jacobian_speedbias_i.block<3, 3>(O_P, O_V - O_V) = -Qi.inverse().toRotationMatrix() * sum_dt;
                 jacobian_speedbias_i.block<3, 3>(O_P, O_BA - O_V) = -dp_dba;
@@ -142,14 +157,16 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
 
                 jacobian_speedbias_i.block<3, 3>(O_BG, O_BG - O_V) = -Eigen::Matrix3d::Identity();
 
-                jacobian_speedbias_i = sqrt_info * jacobian_speedbias_i;
+                jacobian_speedbias_i.block<3, 3>(O_P_Vel, O_BG - O_V) = -dv_dbg;//轮速计
+
+                jacobian_speedbias_i = sqrt_info_wheel * jacobian_speedbias_i;
 
                 //ROS_ASSERT(fabs(jacobian_speedbias_i.maxCoeff()) < 1e8);
                 //ROS_ASSERT(fabs(jacobian_speedbias_i.minCoeff()) < 1e8);
             }
             if (jacobians[2])
             {
-                Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> jacobian_pose_j(jacobians[2]);
+                Eigen::Map<Eigen::Matrix<double, 18, 7, Eigen::RowMajor>> jacobian_pose_j(jacobians[2]);
                 jacobian_pose_j.setZero();
 
                 jacobian_pose_j.block<3, 3>(O_P, O_P) = Qi.inverse().toRotationMatrix();
@@ -160,15 +177,16 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
                 Eigen::Quaterniond corrected_delta_q = pre_integration->delta_q * Utility::deltaQ(dq_dbg * (Bgi - pre_integration->linearized_bg));
                 jacobian_pose_j.block<3, 3>(O_R, O_R) = Utility::Qleft(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
 #endif
+                jacobian_pose_j.block<3, 3>(O_P_Vel, O_P) = Qi.inverse().toRotationMatrix();//轮速计
 
-                jacobian_pose_j = sqrt_info * jacobian_pose_j;
+                jacobian_pose_j = sqrt_info_wheel * jacobian_pose_j;
 
                 //ROS_ASSERT(fabs(jacobian_pose_j.maxCoeff()) < 1e8);
                 //ROS_ASSERT(fabs(jacobian_pose_j.minCoeff()) < 1e8);
             }
             if (jacobians[3])
             {
-                Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> jacobian_speedbias_j(jacobians[3]);
+                Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_speedbias_j(jacobians[3]);
                 jacobian_speedbias_j.setZero();
 
                 jacobian_speedbias_j.block<3, 3>(O_V, O_V - O_V) = Qi.inverse().toRotationMatrix();
@@ -177,7 +195,7 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
 
                 jacobian_speedbias_j.block<3, 3>(O_BG, O_BG - O_V) = Eigen::Matrix3d::Identity();
 
-                jacobian_speedbias_j = sqrt_info * jacobian_speedbias_j;
+                jacobian_speedbias_j = sqrt_info_wheel * jacobian_speedbias_j;
 
                 //ROS_ASSERT(fabs(jacobian_speedbias_j.maxCoeff()) < 1e8);
                 //ROS_ASSERT(fabs(jacobian_speedbias_j.minCoeff()) < 1e8);

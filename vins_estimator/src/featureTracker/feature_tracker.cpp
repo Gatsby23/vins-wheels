@@ -143,7 +143,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
         chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
         chrono::duration<double,milli> time_used = chrono::duration_cast<chrono::duration<double,milli>>(t2 - t1);
-        cout<<"LK_time_used "<<time_used.count()<<"ms"<<endl;
+//        cout<<"LK_time_used "<<time_used.count()<<"ms"<<endl;
         // reverse check
         if(FLOW_BACK)//执行向前和向后的光流以提高特征跟踪精度
         {
@@ -521,7 +521,7 @@ void FeatureTracker::showTrack_qiao(const cv::Mat &cur_img_,const cv::Mat prv_im
     }
     cv::Mat matchs_;
 //    cv::drawMatches(cur_img_2,curLeftPts,prv_img_2,curRightPts,matchs_,matchs_);
-    cv::imshow("left_right",cur_img_1);
+//    cv::imshow("left_right",cur_img_1);
     //cv::waitKey(0);
 }
 

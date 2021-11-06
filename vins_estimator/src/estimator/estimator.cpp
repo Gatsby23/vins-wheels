@@ -54,6 +54,7 @@ void Estimator::clearState()
         dt_buf[i].clear();
         linear_acceleration_buf[i].clear();
         angular_velocity_buf[i].clear();
+        vel_velocity_buf[i].clear();
 
         if (pre_integrations[i] != nullptr)
         {
@@ -101,6 +102,9 @@ void Estimator::setParameter()
         ric[i] = RIC[i];
         cout << " exitrinsic cam " << i << endl  <<"ric"<<endl <<ric[i] << endl <<"tic"<<endl<< tic[i].transpose() << endl;
     }
+    tiv = TIV[0];//轮速计到IMU的外参
+    riv = RIV[0];
+    cout << " exitrinsic vel "  << endl  <<"riv"<<endl <<riv << endl <<"tiv"<<endl<< tiv.transpose() << endl;
     f_manager.setRic(ric);
     ProjectionTwoFrameOneCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
     ProjectionTwoFrameTwoCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
@@ -145,7 +149,7 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
                 last_marginalization_parameter_blocks.clear();
             }
         }
-        
+
         STEREO = use_stereo;
         printf("use imu %d use stereo %d\n", USE_IMU, STEREO);
     }
@@ -181,9 +185,9 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         cv::Mat imgTrack = featureTracker.getTrackImage();
         pubTrackImage(imgTrack, t);
     }
-    
-    if(MULTIPLE_THREAD)  
-    {     
+
+    if(MULTIPLE_THREAD)
+    {
         if(inputImageCnt % 2 == 0)
         {
             mBuf.lock();
@@ -201,7 +205,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         processMeasurements();//重要，应该是计算位姿的
         printf("process time_change: %f\n", processTime.toc());
     }
-    
+
 }
 
 void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity)
@@ -210,17 +214,54 @@ void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vec
     mBuf.lock();
     accBuf.push(make_pair(t, linearAcceleration));
     gyrBuf.push(make_pair(t, angularVelocity));
-    printf("input imu with time %f \n", t);
+//    printf("input imu with time %f \n", t);
     mBuf.unlock();
 
     if (solver_flag == NON_LINEAR)
     {
         mPropagate.lock();
-        fastPredictIMU(t, linearAcceleration, angularVelocity);//积分出  P V Q
+        fastPredictIMU(t, linearAcceleration, angularVelocity);//积分出  P V Q 为了输出高速的位姿
 //        printf("fastPredictIMU \n");
         pubLatestOdometry(latest_P, latest_Q, latest_V, t);
         mPropagate.unlock();
     }
+}
+
+void Estimator::inputWheelsIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity)
+{
+    //预测未考虑观测噪声的p、v、q值,同时将发布最新的IMU测量值消息（pvq值）
+    mBuf.lock();
+    accWheelsBuf.push(make_pair(t, linearAcceleration));
+    gyrWheelsBuf.push(make_pair(t, angularVelocity));
+//    printf("input imu with time %f \n", t);
+    mBuf.unlock();
+
+//    if (solver_flag == NON_LINEAR)
+//    {
+//        mPropagate.lock();
+//        fastPredictIMU(t, linearAcceleration, angularVelocity);//积分出  P V Q
+////        printf("fastPredictIMU \n");
+//        pubLatestOdometry(latest_P, latest_Q, latest_V, t);
+//        mPropagate.unlock();
+//    }
+}
+
+void Estimator::inputVEL(double t, const double &vel, const double &ang_vel)
+{
+    //预测未考虑观测噪声的p、v、q值,同时将发布最新的IMU测量值消息（pvq值）
+    mBuf.lock();
+    velBuf.push(make_pair(t, vel));
+//    printf("input imu with time %f \n", t);
+    mBuf.unlock();
+
+//    if (solver_flag == NON_LINEAR)
+//    {
+//        mPropagate.lock();
+//        fastPredictIMU(t, linearAcceleration, angularVelocity);//积分出  P V Q
+////        printf("fastPredictIMU \n");
+//        pubLatestOdometry(latest_P, latest_Q, latest_V, t);
+//        mPropagate.unlock();
+//    }
 }
 
 void Estimator::inputFeature(double t, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &featureFrame)
@@ -234,7 +275,7 @@ void Estimator::inputFeature(double t, const map<int, vector<pair<int, Eigen::Ma
 }
 
 
-bool Estimator::getIMUInterval(double t0, double t1, vector<pair<double, Eigen::Vector3d>> &accVector, 
+bool Estimator::getIMUInterval(double t0, double t1, vector<pair<double, Eigen::Vector3d>> &accVector,
                                 vector<pair<double, Eigen::Vector3d>> &gyrVector)
 {
     if(accBuf.empty())
@@ -269,9 +310,92 @@ bool Estimator::getIMUInterval(double t0, double t1, vector<pair<double, Eigen::
     return true;
 }
 
+bool Estimator::getWHEELSInterval(double t0, double t1, vector<pair<double, double>> &velVector,
+                               vector<pair<double, double>> &ang_velVector)
+{
+    if(velBuf.empty())
+    {
+        printf("not receive wheels\n");
+        return false;
+    }
+    //printf("get imu from %f %f\n", t0, t1);
+    //printf("imu fornt time %f   imu end time %f\n", accBuf.front().first, accBuf.back().first);
+    if(t1 <= velBuf.back().first)
+    {
+        while (velBuf.front().first <= t0)
+        {
+            velBuf.pop();
+//            gyrBuf.pop();
+        }
+        while (velBuf.front().first < t1)
+        {
+            velVector.push_back(velBuf.front());
+            velBuf.pop();
+//            gyrVector.push_back(gyrBuf.front());
+//            gyrBuf.pop();
+        }
+        velVector.push_back(velBuf.front());
+//        gyrVector.push_back(gyrBuf.front());
+    }
+    else
+    {
+        printf("wait for wheels\n");
+        return false;
+    }
+    return true;
+}
+
+bool Estimator::getWHEELSInterpolation(double t, vector<pair<double, double>> &imuVelVector)
+{
+//    std::cout<<"t= "<<t<<endl;
+    if(velBuf.empty())
+    {
+        printf("not receive wheels\n");
+        return false;
+    }
+    //printf("get imu from %f %f\n", t0, t1);
+    //printf("imu fornt time %f   imu end time %f\n", accBuf.front().first, accBuf.back().first);
+    if(t <= velBuf.back().first)
+    {
+        if(temp_vel.first==0 && t <= velBuf.front().first)//第一次找数据时 t0 比开始时要小。就直接用后一个数据
+        {
+            imuVelVector.push_back(make_pair(t,velBuf.front().second));
+            return true;
+        }
+        while (velBuf.front().first <= t)//小于该时间戳的都扔掉
+        {
+            temp_vel = velBuf.front();
+            velBuf.pop();
+//            gyrBuf.pop();
+        }
+        pair<double,double>temp_back_t0;//t0后面的一个
+        temp_back_t0=velBuf.front();
+        double deltaT = t-temp_vel.first;
+        double dt = temp_back_t0.first-temp_vel.first;
+        double deltaV = temp_back_t0.second-temp_vel.second;
+        double vel_t0 = temp_vel.second + deltaV * deltaT / dt;
+//        std::cout<<"t= "<<t<<endl;
+        imuVelVector.push_back(make_pair(t , vel_t0));
+//        gyrVector.push_back(gyrBuf.front());
+    }
+    else
+    {
+        printf("wait for wheels\n");
+        return false;
+    }
+    return true;
+}
+
 bool Estimator::IMUAvailable(double t)
 {
     if(!accBuf.empty() && t <= accBuf.back().first)
+        return true;
+    else
+        return false;
+}
+bool Estimator::WHEELSAvailable(double t)
+{
+    if(!velBuf.empty() && t <= velBuf.back().first)
         return true;
     else
         return false;
@@ -284,10 +408,24 @@ void Estimator::processMeasurements()
         //printf("process measurments\n");
         pair<double, map<int, vector<pair<int, Eigen::Matrix<double, 7, 1> > > > > feature;
         vector<pair<double, Eigen::Vector3d>> accVector, gyrVector;
+        vector<pair<double, double>> velVector,ang_velVector;
         if(!featureBuf.empty())
         {
             feature = featureBuf.front();
             curTime = feature.first + td;
+            while(1)//等待轮速计
+            {
+                if ((!USE_WHEELS  || WHEELSAvailable(feature.first + td)))//有imu数据，且imu accBuf.back数据时间戳大于图像时间戳
+                    break;
+                else
+                {
+                    printf("wait for wheels ... \n");
+                    if (! MULTIPLE_THREAD)
+                        return;
+                    std::chrono::milliseconds dura(5);
+                    std::this_thread::sleep_for(dura);
+                }
+            }
             while(1)//等待IMU
             {
                 if ((!USE_IMU  || IMUAvailable(feature.first + td)))//有imu数据，且imu accBuf.back数据时间戳大于图像时间戳
@@ -304,13 +442,23 @@ void Estimator::processMeasurements()
             mBuf.lock();
             if(USE_IMU)
                 getIMUInterval(prevTime, curTime, accVector, gyrVector);//获取时间间隔内的IMU
+//            if(USE_WHEELS)
+//            {
+//                getWHEELSInterval(prevTime, curTime, velVector,ang_velVector);//获取时间间隔内的轮速计
+//                std::cout<<"before  Vs[j]= "<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<endl;
+//                Vs[frame_count]=velVector.front().second/Vs[frame_count].norm()*Vs[frame_count];
+//                std::cout<<"after  Vs[j]= "<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<endl;
+//                Eigen::Vector3d velVec=velVector.front().second*Eigen::Vector3d::Identity();
+//                velVec=Rs[frame_count]*velVec;
+//                std::cout<<"velVec= "<<velVec.transpose()<<std::endl;
+//            }
 
             featureBuf.pop();//找到对应图像的imu数据后 特征点的BUFF就pop一个，且，刚开始已经赋值给feature了
             mBuf.unlock();
 
-            if(USE_IMU)
+            if(USE_IMU && !USE_WHEELS)
             {
-                cout<<"处理IMU前的Rs\n"<<Rs[frame_count]<<endl;
+//                cout<<"处理IMU前的Rs!!!!!\n"<<Rs[frame_count]<<endl;
                 if(!initFirstPoseFlag)
                     initFirstIMUPose(accVector);//初始化IMU旋转，使其Z与g平行
                 for(size_t i = 0; i < accVector.size(); i++)
@@ -324,7 +472,7 @@ void Estimator::processMeasurements()
                         dt = accVector[i].first - accVector[i - 1].first;//中间数据的时间戳
                     processIMU(accVector[i].first, dt, accVector[i].second, gyrVector[i].second);//滑动窗口帧间IMU积分，
                 }
-                cout<<"处理IMU后的Rs\n"<<Rs[frame_count]<<endl;
+//                cout<<"处理IMU后的Rs\n"<<Rs[frame_count]<<endl;
                 Eigen::Vector3d acc_without_g=Rs[frame_count] * (accVector[int(accVector.size())-1].second - Bas[frame_count]) ;//- g;
                 Eigen::Vector3d r_acc_=Rs[frame_count] * (accVector[int(accVector.size())-1].second ) ;//- g;
                 double length=sqrt(pow(accVector[int(accVector.size())-1].second.x(),2)+pow(accVector[int(accVector.size())-1].second.y(),2)+pow(accVector[int(accVector.size())-1].second.z(),2));
@@ -333,10 +481,50 @@ void Estimator::processMeasurements()
                     writr_imu_data(accVector[int(accVector.size())-1].first,length,accVector[int(accVector.size())-1].second,acc_without_g,r_acc_);
                 printf("------------------------processIMU \n");
             }
+            else if(USE_IMU && USE_WHEELS)
+            {
+//                cout<<"处理IMU前的Rs!!!!!\n"<<Rs[frame_count]<<endl;
+                if(!initFirstPoseFlag)
+                    initFirstIMUPose(accVector);//初始化IMU旋转，使其Z与g平行
+                std::cout<<"before pre_integrations Vs"<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<std::endl;
+                for(size_t i = 0; i < accVector.size(); i++)
+                {
+                    double dt;
+                    if(i == 0)//第一个imu数据的时间戳减去上一次prevTime的时间戳
+                        dt = accVector[i].first - prevTime;
+                    else if (i == accVector.size() - 1)//最后一个IMU时间戳
+                        dt = curTime - accVector[i - 1].first;
+                    else
+                        dt = accVector[i].first - accVector[i - 1].first;//中间数据的时间戳
+
+                    getWHEELSInterpolation(accVector[i].first, velVector);//获取时间间隔内的轮速计
+                    if(i==0 && solver_flag == NON_LINEAR)
+                    {
+                        vector<pair<double, double>> velVector_temp;
+                        getWHEELSInterpolation(prevTime, velVector_temp);//获取时间间隔内的轮速计
+                        Eigen::Vector3d velVec = Eigen::Vector3d(velVector_temp.front().second,0,0);
+                        std::cout<<"velVec="<<velVec.transpose()<<endl;
+                        velVec = Rs[frame_count] * velVec;
+                        Vs[frame_count]=velVec;
+                        std::cout<<"use vel Vs"<<setprecision(17)<<prevTime<<"\tvs="<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<std::endl;
+                    }
+//                    std::cout<<"getWHEELSInterpolation "<<accVector[i].first<<"  "<<velVector.back().first<<" "<<velVector.back().second<<endl;
+                    processIMU_with_wheel(accVector[i].first, dt, accVector[i].second, gyrVector[i].second, velVector[i].second);//滑动窗口帧间IMU积分，
+                }
+//                cout<<"处理IMU后的Rs\n"<<Rs[frame_count]<<endl;
+                Eigen::Vector3d acc_without_g=Rs[frame_count] * (accVector[int(accVector.size())-1].second - Bas[frame_count]) ;//- g;
+                Eigen::Vector3d r_acc_=Rs[frame_count] * (accVector[int(accVector.size())-1].second ) ;//- g;
+                double length=sqrt(pow(accVector[int(accVector.size())-1].second.x(),2)+pow(accVector[int(accVector.size())-1].second.y(),2)+pow(accVector[int(accVector.size())-1].second.z(),2));
+                cout<<"length="<<length<<"   acc_origion="<<accVector[int(accVector.size())-1].second.transpose()<<"       acc_without_g"<<acc_without_g.transpose()<<"  r_acc_="<<r_acc_.transpose()<<"  g="<<g.transpose()<<endl;
+                //if(abs(length-9.8)<0.05)
+                writr_imu_data(accVector[int(accVector.size())-1].first,length,accVector[int(accVector.size())-1].second,acc_without_g,r_acc_);
+                printf("------------------------processIMU \n");
+            }
+
             mProcess.lock();
             processImage(feature.second, feature.first);//重要   特征点相关，时间戳// 处理图像 和IMU
             prevTime = curTime;
-
+            std::cout<<"latest_V= "<<latest_V.transpose()<<std::endl;
             printStatistics(*this, 0);//打印统计信息
 
             std_msgs::Header header;
@@ -440,7 +628,7 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
     }
     if (frame_count != 0)
     {
-        // 3.预积分操作
+        // 3.预积分操作  是为了初始化的预积分
         pre_integrations[frame_count]->push_back(dt, linear_acceleration, angular_velocity);
         //if(solver_flag != NON_LINEAR)
             tmp_pre_integration->push_back(dt, linear_acceleration, angular_velocity);
@@ -451,7 +639,7 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
         angular_velocity_buf[frame_count].push_back(angular_velocity);
 
         int j = frame_count;
-        // 5.采用的是中值积分的传播方式  这时是预积分
+        // 5.采用的是中值积分的传播方式  这时是积分  IMU预积分出相机位姿先验
         Vector3d un_acc_0 = Rs[j] * (acc_0 - Bas[j]) - g;//滑动窗口的Rs[(WINDOW_SIZE + 1)];
         Vector3d un_gyr = 0.5 * (gyr_0 + angular_velocity) - Bgs[j];
         Rs[j] *= Utility::deltaQ(un_gyr * dt).toRotationMatrix();
@@ -459,9 +647,81 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
         Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);
         Ps[j] += dt * Vs[j] + 0.5 * dt * dt * un_acc;
         Vs[j] += dt * un_acc;
+        std::cout<<"pre_integrations time"<<setprecision(17)<<t<<"  Vs[j]= "<<Vs[j].transpose()<<"\tnorm= "<<Vs[j].norm()
+//        <<"\tBgs[j]= "<<Bgs[j].transpose()<<"\tBas[j]= "<<Bas[j].transpose()
+        <<endl;
     }
     acc_0 = linear_acceleration;
-    gyr_0 = angular_velocity; 
+    gyr_0 = angular_velocity;
+}
+
+void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity ,const double vel)
+{
+
+    // 1.imu未进来数据
+    if (!first_imu)
+    {
+        first_imu = true;
+        acc_0 = linear_acceleration;
+        gyr_0 = angular_velocity;
+    }
+// 2.IMU 预积分类对象还没出现，创建一个
+    if (!pre_integrations[frame_count])
+    {
+        pre_integrations[frame_count] = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
+    }
+    if (frame_count != 0)
+    {
+        // 3.预积分操作  是为了初始化的预积分
+        Eigen::Vector3d velVec=Eigen::Vector3d(vel,0,0);
+        pre_integrations[frame_count]->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
+        Eigen::Vector3d delta_p_imu = pre_integrations[frame_count]->delta_q * (-tiv) + riv * pre_integrations[frame_count]->delta_p_i_vel + tiv;
+        std::cout<<setprecision(6)
+        <<"pre_integrations: delta_p="<<pre_integrations[frame_count]->delta_p.transpose()
+        <<"\tdelta_p_i_vel="<<pre_integrations[frame_count]->delta_p_i_vel.transpose()
+        <<"\tdelta_v="<<pre_integrations[frame_count]->delta_v.transpose()
+        <<"\t delta_p_imu="<<delta_p_imu.transpose()
+        <<endl;
+
+        //if(solver_flag != NON_LINEAR)
+//        tmp_pre_integration->push_back(dt, linear_acceleration, angular_velocity);
+        tmp_pre_integration->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
+        // 4.dt、加速度、角速度加到buf中
+        dt_buf[frame_count].push_back(dt);
+        linear_acceleration_buf[frame_count].push_back(linear_acceleration);
+        angular_velocity_buf[frame_count].push_back(angular_velocity);
+        vel_velocity_buf[frame_count].push_back(velVec);
+
+        int j = frame_count;
+        // 5.采用的是中值积分的传播方式  这时是积分  IMU预积分出相机位姿先验
+        Vector3d un_acc_0 = Rs[j] * (acc_0 - Bas[j]) - g;//滑动窗口的Rs[(WINDOW_SIZE + 1)];
+        Vector3d un_gyr = 0.5 * (gyr_0 + angular_velocity) - Bgs[j];
+        Rs[j] *= Utility::deltaQ(un_gyr * dt).toRotationMatrix();
+        Vector3d un_acc_1 = Rs[j] * (linear_acceleration - Bas[j]) - g;
+        Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);//有二阶龙格库塔的效果
+        Ps[j] += dt * Vs[j] + 0.5 * dt * dt * un_acc;
+        Vs[j] += dt * un_acc;
+        Eigen::Matrix4d T_i_v=Eigen::Matrix4d::Identity();
+        T_i_v.matrix().block<3,3>(0,0)=riv;
+        T_i_v.matrix().block<3,1>(0,3)=tiv;
+        Eigen::Matrix4d T_v=Eigen::Matrix4d::Identity();
+        T_v.matrix().block<3,1>(0,3)=Eigen::Vector3d(vel,0,0);
+        T_v.matrix().block<3,3>(0,0)=Utility::deltaQ(un_gyr * dt).toRotationMatrix();
+//        Eigen::Vector3d Vels=Rs[j]*Eigen::Vector3d(vel,0,0);
+        T_v=T_i_v*T_v*(T_i_v.inverse());
+        Eigen::Vector3d Vels=Rs[j] * T_v.matrix().block<3,1>(0,3);
+        if(frame_count>2)
+        {
+            std::cout<<"pre_integrations time"<<setprecision(17)<<t
+                     <<"\tdelta P[i]"<<(Ps[j]-Ps[j-1]).transpose() <<endl;
+        }
+//                 <<setprecision(10)<<"\tVs[j]="<<Vs[j].transpose()<<"\tnorm= "<<Vs[j].norm()
+//                 <<"\nvel= "<<vel<<"\t Vels="<<Vels.transpose()<<"\t norm="<<Vels.norm()<<"\traw vel="<<vel
+////                 <<"\nT_v"<<T_v
+//                 //        <<"\tBgs[j]= "<<Bgs[j].transpose()<<"\tBas[j]= "<<Bas[j].transpose()
+    }
+    acc_0 = linear_acceleration;
+    gyr_0 = angular_velocity;
 }
 
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header)
@@ -554,7 +814,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 if(ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp) > 0.1)
                 {
                     result = initialStructure();
-                    initial_timestamp = header;   
+                    initial_timestamp = header;
                 }
                 if(result)
                 {
@@ -635,7 +895,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         if(!USE_IMU)
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//pnp求位姿
         f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化 depth
-        optimization();//优化
+        optimization();//优化_used
         set<int> removeIndex;
         outliersRejection(removeIndex);
         f_manager.removeOutlier(removeIndex);
@@ -644,7 +904,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             featureTracker.removeOutliers(removeIndex);
             predictPtsInNextFrame();
         }
-            
+
         ROS_DEBUG("solver costs: %fms", t_solve.toc()); //异常检测与恢复, 检测到异常，系统将切换回初始化阶段
 
         if (failureDetection())
@@ -669,7 +929,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         last_R0 = Rs[0];
         last_P0 = Ps[0];
         updateLatestStates();
-    }  
+    }
 }
 
 bool Estimator::initialStructure()
@@ -721,7 +981,7 @@ bool Estimator::initialStructure()
             tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
         }
         sfm_f.push_back(tmp_feature);
-    } 
+    }
     Matrix3d relative_R;
     Vector3d relative_T;
     int l;
@@ -786,7 +1046,7 @@ bool Estimator::initialStructure()
                 }
             }
         }
-        cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);     
+        cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         if(pts_3_vector.size() < 6)
         {
             cout << "pts_3_vector size " << pts_3_vector.size() << endl;
@@ -1019,6 +1279,7 @@ bool Estimator::visualInitialAlign()//视觉惯性对齐
     double yaw = Utility::R2ypr(R0 * Rs[0]).x();
     R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
     g = R0 * g;
+    std::cout<<"g after change state"<<g.transpose()<<std::endl;
     //Matrix3d rot_diff = R0 * Rs[0].transpose();
     Matrix3d rot_diff = R0;
     for (int i = 0; i <= frame_count; i++)
@@ -1149,7 +1410,7 @@ void Estimator::double2vector()
         {
 
             Rs[i] = rot_diff * Quaterniond(para_Pose[i][6], para_Pose[i][3], para_Pose[i][4], para_Pose[i][5]).normalized().toRotationMatrix();
-            
+
             Ps[i] = rot_diff * Vector3d(para_Pose[i][0] - para_Pose[0][0],
                                     para_Pose[i][1] - para_Pose[0][1],
                                     para_Pose[i][2] - para_Pose[0][2]) + origin_P0;
@@ -1166,7 +1427,7 @@ void Estimator::double2vector()
                 Bgs[i] = Vector3d(para_SpeedBias[i][6],
                                   para_SpeedBias[i][7],
                                   para_SpeedBias[i][8]);
-            
+
         }
     }
     else
@@ -1174,7 +1435,7 @@ void Estimator::double2vector()
         for (int i = 0; i <= WINDOW_SIZE; i++)
         {
             Rs[i] = Quaterniond(para_Pose[i][6], para_Pose[i][3], para_Pose[i][4], para_Pose[i][5]).normalized().toRotationMatrix();
-            
+
             Ps[i] = Vector3d(para_Pose[i][0], para_Pose[i][1], para_Pose[i][2]);
         }
     }
@@ -1323,11 +1584,11 @@ void Estimator::optimization()
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (it_per_id.used_num < 4)
             continue;
- 
+
         ++feature_index;
 
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
-        
+
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
@@ -1342,7 +1603,7 @@ void Estimator::optimization()
             }
 
             if(STEREO && it_per_frame.is_stereo)
-            {                
+            {
                 Vector3d pts_j_right = it_per_frame.pointRight;
                 if(imu_i != imu_j)
                 {
@@ -1356,7 +1617,7 @@ void Estimator::optimization()
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                     problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
-               
+
             }
             f_m_cnt++;
         }
@@ -1381,16 +1642,16 @@ void Estimator::optimization()
     TicToc t_solver;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    //cout << summary.BriefReport() << endl;
+    cout << summary.BriefReport() << endl;
     ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
-    //printf("solver costs: %f \n", t_solver.toc());
+    printf("solver costs: %f \n", t_solver.toc());
 
     double2vector();
     //printf("frame_count: %d \n", frame_count);
 
     if(frame_count < WINDOW_SIZE)
         return;
-    
+
     TicToc t_whole_marginalization;
     if (marginalization_flag == MARGIN_OLD)
     {
@@ -1484,7 +1745,7 @@ void Estimator::optimization()
         TicToc t_pre_margin;
         marginalization_info->preMarginalize();
         ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
-        
+
         TicToc t_margin;
         marginalization_info->marginalize();
         ROS_DEBUG("marginalization %f ms", t_margin.toc());
@@ -1507,7 +1768,7 @@ void Estimator::optimization()
             delete last_marginalization_info;
         last_marginalization_info = marginalization_info;
         last_marginalization_parameter_blocks = parameter_blocks;
-        
+
     }
     else
     {
@@ -1544,7 +1805,7 @@ void Estimator::optimization()
             ROS_DEBUG("begin marginalization");
             marginalization_info->marginalize();
             ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
-            
+
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
             {
@@ -1568,13 +1829,13 @@ void Estimator::optimization()
 
             addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
 
-            
+
             vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
             if (last_marginalization_info)
                 delete last_marginalization_info;
             last_marginalization_info = marginalization_info;
             last_marginalization_parameter_blocks = parameter_blocks;
-            
+
         }
     }
     //printf("whole marginalization costs: %f \n", t_whole_marginalization.toc());
@@ -1603,6 +1864,7 @@ void Estimator::slideWindow()
                     dt_buf[i].swap(dt_buf[i + 1]);
                     linear_acceleration_buf[i].swap(linear_acceleration_buf[i + 1]);
                     angular_velocity_buf[i].swap(angular_velocity_buf[i + 1]);
+                    vel_velocity_buf[i].swap(angular_velocity_buf[i + 1]);
 
                     Vs[i].swap(Vs[i + 1]);
                     Bas[i].swap(Bas[i + 1]);
@@ -1619,12 +1881,14 @@ void Estimator::slideWindow()
                 Bas[WINDOW_SIZE] = Bas[WINDOW_SIZE - 1];
                 Bgs[WINDOW_SIZE] = Bgs[WINDOW_SIZE - 1];
 
+                //重新更新预积分的变量
                 delete pre_integrations[WINDOW_SIZE];
                 pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
 
                 dt_buf[WINDOW_SIZE].clear();
                 linear_acceleration_buf[WINDOW_SIZE].clear();
                 angular_velocity_buf[WINDOW_SIZE].clear();
+                vel_velocity_buf[WINDOW_SIZE].clear();
             }
 
             if (true || solver_flag == INITIAL)
@@ -1652,12 +1916,14 @@ void Estimator::slideWindow()
                     double tmp_dt = dt_buf[frame_count][i];
                     Vector3d tmp_linear_acceleration = linear_acceleration_buf[frame_count][i];
                     Vector3d tmp_angular_velocity = angular_velocity_buf[frame_count][i];
+                    Vector3d tmp_vel_velocity = vel_velocity_buf[frame_count][i];
 
-                    pre_integrations[frame_count - 1]->push_back(tmp_dt, tmp_linear_acceleration, tmp_angular_velocity);
+                    pre_integrations[frame_count - 1]->push_back_wheels(tmp_dt, tmp_linear_acceleration, tmp_angular_velocity,tmp_vel_velocity);
 
                     dt_buf[frame_count - 1].push_back(tmp_dt);
                     linear_acceleration_buf[frame_count - 1].push_back(tmp_linear_acceleration);
                     angular_velocity_buf[frame_count - 1].push_back(tmp_angular_velocity);
+                    vel_velocity_buf[frame_count - 1].push_back(tmp_angular_velocity);
                 }
 
                 Vs[frame_count - 1] = Vs[frame_count];
@@ -1670,6 +1936,7 @@ void Estimator::slideWindow()
                 dt_buf[WINDOW_SIZE].clear();
                 linear_acceleration_buf[WINDOW_SIZE].clear();
                 angular_velocity_buf[WINDOW_SIZE].clear();
+                vel_velocity_buf[WINDOW_SIZE].clear();
             }
             slideWindowNew();
         }
@@ -1707,6 +1974,11 @@ void Estimator::getPoseInWorldFrame(Eigen::Matrix4d &T)
     T = Eigen::Matrix4d::Identity();
     T.block<3, 3>(0, 0) = Rs[frame_count];
     T.block<3, 1>(0, 3) = Ps[frame_count];
+}
+
+void Estimator::getVelInWorldFrame(Eigen::Vector3d &v)
+{
+    v=Vs[frame_count];
 }
 
 void Estimator::getPoseInWorldFrame(int index, Eigen::Matrix4d &T)
@@ -1752,7 +2024,7 @@ void Estimator::predictPtsInNextFrame()
 }
 
 double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
-                                 Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
+                                 Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj,
                                  double depth, Vector3d &uvi, Vector3d &uvj)
 {
     Vector3d pts_w = Ri * (rici * (depth * uvi) + tici) + Pi;
@@ -1783,8 +2055,8 @@ void Estimator::outliersRejection(set<int> &removeIndex)
             imu_j++;
             if (imu_i != imu_j)
             {
-                Vector3d pts_j = it_per_frame.point;             
-                double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
+                Vector3d pts_j = it_per_frame.point;
+                double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
                                                     Rs[imu_j], Ps[imu_j], ric[0], tic[0],
                                                     depth, pts_i, pts_j);
                 err += tmp_error;
@@ -1794,11 +2066,11 @@ void Estimator::outliersRejection(set<int> &removeIndex)
             // need to rewrite projecton factor.........
             if(STEREO && it_per_frame.is_stereo)
             {
-                
+
                 Vector3d pts_j_right = it_per_frame.pointRight;
                 if(imu_i != imu_j)
-                {            
-                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
+                {
+                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
                                                         Rs[imu_j], Ps[imu_j], ric[1], tic[1],
                                                         depth, pts_i, pts_j_right);
                     err += tmp_error;
@@ -1807,13 +2079,13 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                 }
                 else
                 {
-                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
+                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
                                                         Rs[imu_j], Ps[imu_j], ric[1], tic[1],
                                                         depth, pts_i, pts_j_right);
                     err += tmp_error;
                     errCnt++;
                     //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
-                }       
+                }
             }
         }
         double ave_err = err / errCnt;

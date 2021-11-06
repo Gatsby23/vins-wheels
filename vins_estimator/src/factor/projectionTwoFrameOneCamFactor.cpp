@@ -74,6 +74,7 @@ bool ProjectionTwoFrameOneCamFactor::Evaluate(double const *const *parameters, d
 #endif
 
     residual = sqrt_info * residual;
+    std::cout<<"cam residual: "<<residual.transpose()<<std::endl;
 
     if (jacobians)
     {

@@ -41,7 +41,7 @@ int main(int argc, char** argv)
 
 	ros::Publisher pubLeftImage = n.advertise<sensor_msgs::Image>("/leftImage",1000);
 	ros::Publisher pubRightImage = n.advertise<sensor_msgs::Image>("/rightImage",1000);
-
+    ros::Publisher pubImu = n.advertise<sensor_msgs::Imu>("/Imu",1000);
 	if(argc != 3)
 	{
 		printf("please intput: rosrun vins kitti_odom_test [config file] [data folder] \n"
@@ -86,6 +86,9 @@ int main(int argc, char** argv)
 	string leftImagePath, rightImagePath;
 	cv::Mat imLeft, imRight;
 	FILE* outFile;
+    ofstream path_Save;
+    path_Save.open((OUTPUT_FOLDER + "/vio_tum.txt").c_str() );
+    path_Save<<fixed;
     OUTPUT_FOLDER = strPathToSequence;
 	outFile = fopen((OUTPUT_FOLDER + "/vio.txt").c_str(),"w");
 	if(outFile == NULL)
@@ -124,14 +127,22 @@ int main(int argc, char** argv)
 			pubRightImage.publish(imRightMsg);
 
 
-			estimator.inputImage(vTimestamps[i], imLeft,imRight);//时间戳 左目 右目
+			estimator.inputImage(vTimestamps[i], imLeft);//时间戳 左目 右目
 			
 			Eigen::Matrix<double, 4, 4> pose;
 			estimator.getPoseInWorldFrame(pose);
+            Eigen::Quaterniond q_(pose.matrix().block<3,3>(0,0));
+            path_Save<<setprecision(6)<<vTimestamps[i]<<" "<<
+                        setprecision(7)<<pose(0,3)<<" "<<pose(1,3)<<" "<<pose(2,3)<<" "<<
+                        q_.x()<<" "<<q_.y()<<" "<<q_.z()<<" "<<q_.w()<<endl;
 			if(outFile != NULL)
-				fprintf (outFile, "%f %f %f %f %f %f %f %f %f %f %f %f \n",pose(0,0), pose(0,1), pose(0,2),pose(0,3),
-																	       pose(1,0), pose(1,1), pose(1,2),pose(1,3),
-																	       pose(2,0), pose(2,1), pose(2,2),pose(2,3));
+                fprintf (outFile, "%f %f %f %f %f %f %f %f \n",
+                         vTimestamps[i],
+                         pose(0,3), pose(1,3), pose(2,3),
+                         q_.x(),q_.y(),q_.z(),q_.w());
+//				fprintf (outFile, "%f %f %f %f %f %f %f %f %f %f %f %f \n",pose(0,0), pose(0,1), pose(0,2),pose(0,3),
+//																	       pose(1,0), pose(1,1), pose(1,2),pose(1,3),
+//																	       pose(2,0), pose(2,1), pose(2,2),pose(2,3));
 			
 			//cv::imshow("leftImage", imLeft);
 			//cv::imshow("rightImage", imRight);
@@ -206,3 +217,4 @@ void LoadImages(const string &strPathToSequence,
 #endif
 
 }
+
