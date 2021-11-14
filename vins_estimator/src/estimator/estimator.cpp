@@ -506,7 +506,7 @@ void Estimator::processMeasurements()
                         std::cout<<"velVec="<<velVec.transpose()<<endl;
                         velVec = Rs[frame_count] * velVec;
                         Vs[frame_count]=velVec;
-                        std::cout<<"use vel Vs"<<setprecision(17)<<prevTime<<"\tvs="<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<std::endl;
+//                        std::cout<<"use vel Vs"<<setprecision(17)<<prevTime<<"\tvs="<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<std::endl;
                     }
 //                    std::cout<<"getWHEELSInterpolation "<<accVector[i].first<<"  "<<velVector.back().first<<" "<<velVector.back().second<<endl;
                     processIMU_with_wheel(accVector[i].first, dt, accVector[i].second, gyrVector[i].second, velVector[i].second);//滑动窗口帧间IMU积分，
@@ -675,13 +675,14 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         // 3.预积分操作  是为了初始化的预积分
         Eigen::Vector3d velVec=Eigen::Vector3d(vel,0,0);
         pre_integrations[frame_count]->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
+
         Eigen::Vector3d delta_p_imu = pre_integrations[frame_count]->delta_q * (-tiv) + riv * pre_integrations[frame_count]->delta_p_i_vel + tiv;
-        std::cout<<setprecision(6)
-        <<"pre_integrations: delta_p="<<pre_integrations[frame_count]->delta_p.transpose()
-        <<"\tdelta_p_i_vel="<<pre_integrations[frame_count]->delta_p_i_vel.transpose()
-        <<"\tdelta_v="<<pre_integrations[frame_count]->delta_v.transpose()
-        <<"\t delta_p_imu="<<delta_p_imu.transpose()
-        <<endl;
+//        std::cout<<setprecision(6)
+//        <<"pre_integrations: delta_p="<<pre_integrations[frame_count]->delta_p.transpose()
+//        <<"\tdelta_p_i_vel="<<pre_integrations[frame_count]->delta_p_i_vel.transpose()
+//        <<"\tdelta_v="<<pre_integrations[frame_count]->delta_v.transpose()
+//        <<"\t delta_p_imu="<<delta_p_imu.transpose()
+//        <<endl;
 
         //if(solver_flag != NON_LINEAR)
 //        tmp_pre_integration->push_back(dt, linear_acceleration, angular_velocity);
@@ -710,11 +711,11 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
 //        Eigen::Vector3d Vels=Rs[j]*Eigen::Vector3d(vel,0,0);
         T_v=T_i_v*T_v*(T_i_v.inverse());
         Eigen::Vector3d Vels=Rs[j] * T_v.matrix().block<3,1>(0,3);
-        if(frame_count>2)
-        {
-            std::cout<<"pre_integrations time"<<setprecision(17)<<t
-                     <<"\tdelta P[i]"<<(Ps[j]-Ps[j-1]).transpose() <<endl;
-        }
+//        if(frame_count>2)
+//        {
+//            std::cout<<"pre_integrations time "<<setprecision(17)<<t
+//                     <<"\tdelta P[i]"<<(Ps[j]-Ps[j-1]).transpose() <<"\tVs[j]="<<Vs[j].transpose()<<"\t vel= "<<vel<<endl;
+//        }
 //                 <<setprecision(10)<<"\tVs[j]="<<Vs[j].transpose()<<"\tnorm= "<<Vs[j].norm()
 //                 <<"\nvel= "<<vel<<"\t Vels="<<Vels.transpose()<<"\t norm="<<Vels.norm()<<"\traw vel="<<vel
 ////                 <<"\nT_v"<<T_v
@@ -847,7 +848,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 solveGyroscopeBias(all_image_frame, Bgs);//陀螺仪bias
                 for (int i = 0; i <= WINDOW_SIZE; i++)
                 {
-                    pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);//重新积分
+                    pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);//双目+IMU 重新积分
                 }
                 optimization();
                 updateLatestStates();
@@ -1067,6 +1068,7 @@ bool Estimator::initialStructure()
         T_pnp = R_pnp * (-T_pnp);
         frame_it->second.R = R_pnp * RIC[0].transpose();
         frame_it->second.T = T_pnp;
+        std::cout<<setprecision(17)<<frame_it->first<<"\t T="<<frame_it->second.T.transpose()<<endl;
     }
     if (visualInitialAlign())//视觉惯性对齐
         return true;
@@ -1260,18 +1262,27 @@ bool Estimator::visualInitialAlign()//视觉惯性对齐
     double s = (x.tail<1>())(0);
     for (int i = 0; i <= WINDOW_SIZE; i++)
     {
-        pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
+        pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);//视觉惯性对齐 重新积分
+        std::cout<<setprecision(6)
+                 <<"repropagate : delta_p="<<pre_integrations[i]->delta_p.transpose()
+                 <<"\tdelta_p_i_vel="<<pre_integrations[i]->delta_p_i_vel.transpose()
+                 <<"\tdelta_v="<<pre_integrations[i]->delta_v.transpose()
+                 <<"\t t_imu"<< (TIV[0] - pre_integrations[i]->delta_q * TIV[0] + pre_integrations[i]->delta_p_i_vel).transpose()
+                 <<endl;
     }
     for (int i = frame_count; i >= 0; i--)
         Ps[i] = s * Ps[i] - Rs[i] * TIC[0] - (s * Ps[0] - Rs[0] * TIC[0]);
-    int kv = -1;
+    int kv = -1, kfv=-1;
     map<double, ImageFrame>::iterator frame_i;
+//    std::cout<<"x=\n"<<x<<std::endl;
     for (frame_i = all_image_frame.begin(); frame_i != all_image_frame.end(); frame_i++)
     {
+        kv++;
         if(frame_i->second.is_key_frame)
         {
-            kv++;
-            Vs[kv] = frame_i->second.R * x.segment<3>(kv * 3);
+            kfv++;
+            Vs[kfv] = frame_i->second.R * x.segment<3>(kv * 3);
+            std::cout<<"time= "<<setprecision(17)<<frame_i->first<<"\tVs[kv]="<<Vs[kv].transpose()<<std::endl;
         }
     }
 
@@ -1287,6 +1298,13 @@ bool Estimator::visualInitialAlign()//视觉惯性对齐
         Ps[i] = rot_diff * Ps[i];
         Rs[i] = rot_diff * Rs[i];
         Vs[i] = rot_diff * Vs[i];
+//        std::cout<<"PS[i]"<<Ps[i].transpose()<<endl;
+        if(i>0)
+            std::cout<<"curTime="<<setprecision(17)<<curTime<<"\tPS[i]-PS[i-1]"<<(Ps[i]-Ps[i-1]).transpose()<<endl;
+    }
+    for (int i = 0; i <= frame_count; i++)
+    {
+        std::cout<<"PS[i]= "<<Ps[i].transpose()<<"\tVs[i]="<<Vs[i].transpose()<<endl;
     }
     ROS_DEBUG_STREAM("g0     " << g.transpose());
     ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose());
@@ -1532,10 +1550,13 @@ void Estimator::optimization()
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();//本地参数化
         problem.AddParameterBlock(para_Pose[i], SIZE_POSE, local_parameterization);//参数_位姿
         if(USE_IMU)
+        {
             problem.AddParameterBlock(para_SpeedBias[i], SIZE_SPEEDBIAS);
+        }
     }
     if(!USE_IMU)
-        problem.SetParameterBlockConstant(para_Pose[0]);//这个函数是设置参数块为常数将帧头设置为零
+        problem.SetParameterBlockConstant(para_Pose[0]);//这个函数是设置参数块为常数  将帧头设置为零
+
 
     //加入相机外参
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -1562,8 +1583,8 @@ void Estimator::optimization()
     {
         // construct new marginlization_factor
         MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);//边缘化
-        problem.AddResidualBlock(marginalization_factor, NULL,
-                                 last_marginalization_parameter_blocks);
+//        problem.AddResidualBlock(marginalization_factor, NULL,
+//                                 last_marginalization_parameter_blocks);
     }
     if(USE_IMU)
     {
@@ -1593,6 +1614,7 @@ void Estimator::optimization()
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
+            break;
             imu_j++;
             if (imu_i != imu_j)
             {
@@ -1633,7 +1655,7 @@ void Estimator::optimization()
     options.trust_region_strategy_type = ceres::DOGLEG;
     options.max_num_iterations = NUM_ITERATIONS;
     //options.use_explicit_schur_complement = true;
-    //options.minimizer_progress_to_stdout = true;
+    options.minimizer_progress_to_stdout = true;
     //options.use_nonmonotonic_steps = true;
     if (marginalization_flag == MARGIN_OLD)
         options.max_solver_time_in_seconds = SOLVER_TIME * 4.0 / 5.0;
@@ -1642,13 +1664,14 @@ void Estimator::optimization()
     TicToc t_solver;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    cout << summary.BriefReport() << endl;
+//    cout << summary.BriefReport() << endl;
     ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
+    std::cout << "summary.BriefReport()\n" << summary.BriefReport() << "\n";
     printf("solver costs: %f \n", t_solver.toc());
 
     double2vector();
     //printf("frame_count: %d \n", frame_count);
-
+    return ;
     if(frame_count < WINDOW_SIZE)
         return;
 
@@ -1743,7 +1766,7 @@ void Estimator::optimization()
         }
 
         TicToc t_pre_margin;
-        marginalization_info->preMarginalize();
+        marginalization_info->preMarginalize();//会加入残差优化
         ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
 
         TicToc t_margin;

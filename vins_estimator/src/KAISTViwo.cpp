@@ -116,7 +116,7 @@ int main(int argc, char** argv)
             sensor_msgs::Imu imuMsg;
             while(imu_time<vTimestamps[i]) {
                 if(readImuFile(imu_file_st, imu_time, mag, acc, gyr, odom, imuMsg)) {
-//                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<endl;
+//                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<"\tacc="<<acc.transpose()<<"\tnorm="<<acc.norm()<<endl;
                     pubImu.publish(imuMsg);
                     estimator.inputIMU(imu_time, acc, gyr);
                 }
@@ -126,12 +126,15 @@ int main(int argc, char** argv)
             if(wheels_time==0)
                 readWheels(wheels_file_st,wheels_time,wheels_cnt,vel,ang_vel);//先读一遍
             while(wheels_time<imu_time){
-                if(readWheels(wheels_file_st,wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
                 {
-//                    cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
-                    estimator.inputVEL(wheels_time, vel, ang_vel);
+                    double last_wheels_time=wheels_time;
+                    if(readWheels(wheels_file_st,wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
+                    {
+//                        cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
+                        estimator.inputVEL(wheels_time, vel, ang_vel);
+                    }
+                    else break;
                 }
-                else break;
             }
             printf("\nprocess image %d with time:%f\n", (int)i,vTimestamps[i]);
             leftImagePath = vstrImageFilenames0[i];

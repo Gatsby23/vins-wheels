@@ -72,6 +72,7 @@ class IntegrationBase
         covariance.setZero();
 //        for (int i = 0; i < static_cast<int>(dt_buf.size()); i++)
 //            propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
+        std::cout<<"dt_buf.size() "<<dt_buf.size()<<std::endl;
         for (int i = 0; i < static_cast<int>(dt_buf.size()); i++)
             propagate_wheel(dt_buf[i], acc_buf[i], gyr_buf[i],vel_buf[i]);
     }
@@ -188,7 +189,7 @@ class IntegrationBase
 
             Vector3d vel_0_x,vel_1_x;
             vel_0_x = RIV[0]*_vel_0;
-            vel_1_x = RIV[1]*_vel_1;
+            vel_1_x = RIV[0]*_vel_1;
             Matrix3d R_vel_0_x,R_vel_1_x;
 
             R_w_x<<0, -w_x(2), w_x(1),
@@ -227,10 +228,10 @@ class IntegrationBase
             F.block<3, 3>(9, 9) = Matrix3d::Identity();
             F.block<3, 3>(12, 12) = Matrix3d::Identity();
             //vel
-            F.block<3, 3>(15, 3) = -0.5 * delta_q.toRotationMatrix() * R_vel_0_x * _dt +
-                                   -0.5 * result_delta_q.toRotationMatrix() * R_vel_1_x * (Matrix3d::Identity() - R_w_x * _dt) * _dt;
-            F.block<3, 3>(15, 12) = -0.5 * result_delta_q.toRotationMatrix() * R_vel_1_x * _dt * -_dt;
-            F.block<3, 3>(15, 15) = Matrix3d::Identity();
+            F.block<3, 3>(15, 3) = (-0.5 * delta_q.toRotationMatrix() * R_vel_0_x * _dt +
+                                   -0.5 * result_delta_q.toRotationMatrix() * R_vel_1_x * (Matrix3d::Identity() - R_w_x * _dt) * _dt);  //对角度
+            F.block<3, 3>(15, 12) = (-0.5 * result_delta_q.toRotationMatrix() * R_vel_1_x * _dt);//对角度bias
+            F.block<3, 3>(15, 15) = Matrix3d::Identity();//对轮速计偏差
             //cout<<"A"<<endl<<A<<endl;
 
             MatrixXd V = MatrixXd::Zero(18,21);
@@ -250,7 +251,7 @@ class IntegrationBase
             //轮式计
             V.block<3, 3>(15, 3) = 0.5 * -result_delta_q.toRotationMatrix() * R_vel_1_x * _dt * 0.5 * _dt;
             V.block<3, 3>(15, 9) = V.block<3, 3>(15, 3);
-            V.block<3, 3>(15, 18) = MatrixXd::Identity(3,3) * _dt;
+            V.block<3, 3>(15, 18) = 0.5 * (delta_q.toRotationMatrix()*RIV[0]+result_delta_q.toRotationMatrix()*RIV[0]) * _dt;
 
             //step_jacobian = F;
             //step_V = V;
@@ -303,9 +304,10 @@ class IntegrationBase
         Vector3d result_delta_v;
         Vector3d result_linearized_ba;
         Vector3d result_linearized_bg;
-        std::cout<<"midPointIntegration_wheel after  delta_p_i_vel:"<<setprecision(8)
-        <<delta_p_i_vel.transpose()<<"\tdelta_q: "<<delta_q.coeffs().transpose()<<
-                 " delta_p: "<<delta_p.transpose()<<endl;
+//        std::cout<<"midPointIntegration_wheel after  delta_p_i_vel:"<<setprecision(8)
+//        <<delta_p_i_vel.transpose()<<"\tdelta_q: "<<delta_q.coeffs().transpose()<<
+//                 " delta_p: "<<delta_p.transpose()
+//                 <<"\n linearized_ba "<<linearized_ba.transpose()<<"\tlinearized_bg "<<linearized_bg.transpose()<<endl;
         midPointIntegration_wheel(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
                                   linearized_ba, linearized_bg,
                                   result_delta_p, result_delta_q, result_delta_v,
@@ -368,27 +370,31 @@ class IntegrationBase
         Eigen::Matrix3d dv_dba = jacobian.block<3, 3>(O_V, O_BA);
         Eigen::Matrix3d dv_dbg = jacobian.block<3, 3>(O_V, O_BG);
 
+        Eigen::Matrix3d dyita_dbg = jacobian.block<3, 3>(O_P_Vel, O_BG);
+
         Eigen::Vector3d dba = Bai - linearized_ba;
         Eigen::Vector3d dbg = Bgi - linearized_bg;
 
         Eigen::Quaterniond corrected_delta_q = delta_q * Utility::deltaQ(dq_dbg * dbg);
         Eigen::Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
         Eigen::Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
+        Eigen::Vector3d corrected_delta_p_i_vel = delta_p_i_vel + dyita_dbg * dbg;
 
         residuals.block<3, 1>(O_P, 0) = Qi.inverse() * (0.5 * G * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
         residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
         residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (G * sum_dt + Vj - Vi) - corrected_delta_v;
         residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
         residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
-        residuals.block<3, 1>(O_P_Vel,0)=Qi.inverse() * (Pj - Pi) - TIV[0] + corrected_delta_q * TIV[0] - delta_p_i_vel;
+        residuals.block<3, 1>(O_P_Vel,0)=Qi.inverse() * (Pj - Pi) - TIV[0] + (Qi.inverse()*Qj) * TIV[0] - corrected_delta_p_i_vel;
 //        residuals.block<3, 1>(O_P_Vel,0)=Eigen::Vector3d::Zero();
         Eigen::Vector3d temp_ = -TIV[0] + corrected_delta_q * TIV[0];
         Eigen::Vector3d temp2_ = Qi.inverse() * (Pj - Pi);
         Eigen::Vector3d temp3_ = (Pj - Pi);
-        std::cout<<"delta_p_i_vel:                          "<<delta_p_i_vel.transpose()<<endl;
-        std::cout<<"-TIV[0] + corrected_delta_q * TIV[0]:   "<<temp_.transpose()<<std::endl;
-        std::cout<<"Qi.inverse() * (Pj - Pi):               "<<temp2_.transpose()<<std::endl;
-        std::cout<<"(Pj - Pi):                              "<<temp3_.transpose()<<std::endl;
+        std::cout<<"delta_p_i_vel:                          "<<corrected_delta_p_i_vel.transpose();
+        std::cout<<"\t\t-TIV[0] + corrected_delta_q * TIV[0]:   "<<temp_.transpose()<<std::endl;
+        std::cout<<"Qi.inverse() * (Pj - Pi):               "<<temp2_.transpose();
+        std::cout<<"\t\t(Pj - Pi):                              "<<temp3_.transpose()<<std::endl;
+        std::cout<<"Bgi: "<<Bgi.transpose()<<"\tBai:"<<Bai.transpose()<<std::endl;
 
         return residuals;
     }
