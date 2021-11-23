@@ -9,7 +9,7 @@ wheels: 1
 imu_topic: "/imu0"
 image0_topic: "/cam0/image_raw"
 image1_topic: "/cam1/image_raw"
-output_path: "/home/q/output/"
+output_path: "/home/q/output/vins_data_out/"
 
 cam0_calib: "cam0_pinhole.yaml"
 cam1_calib: "cam1_pinhole.yaml"
@@ -60,8 +60,8 @@ show_track: 1           # publish tracking image as topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
 
 #optimization parameters
-max_solver_time: 40  # max solver itration time (ms), to guarantee real time
-max_num_iterations: 18   # max solver itrations, to guarantee real time
+max_solver_time: 0.4  # max solver itration time (ms), to guarantee real time
+max_num_iterations: 8   # max solver itrations, to guarantee real time
 keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
 
 #imu parameters       The more accurate parameters you provide, the better performance
@@ -77,5 +77,5 @@ td: 0.0                             # initial value of time offset. unit: s. rea
 
 #loop closure parameters
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
-pose_graph_save_path: "/home/q/output/" # save and load path
+pose_graph_save_path: "/home/q/output/vins_data_out/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0

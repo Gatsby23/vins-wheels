@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     ofstream path_Save;
     path_Save.open((OUTPUT_FOLDER + "/vio_tum.txt").c_str() );
     path_Save<<fixed;
-    OUTPUT_FOLDER = strPathToSequence;
+//    OUTPUT_FOLDER = strPathToSequence;
     outFile = fopen((OUTPUT_FOLDER + "/vio.txt").c_str(),"w");
     if(outFile == NULL)
         printf("Output path dosen't exist: %s\n", OUTPUT_FOLDER.c_str());
@@ -130,7 +130,7 @@ int main(int argc, char** argv)
                     double last_wheels_time=wheels_time;
                     if(readWheels(wheels_file_st,wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
                     {
-//                        cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
+                        cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
                         estimator.inputVEL(wheels_time, vel, ang_vel);
                     }
                     else break;

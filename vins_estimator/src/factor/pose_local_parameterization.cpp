@@ -23,7 +23,7 @@ bool PoseLocalParameterization::Plus(const double *x, const double *delta, doubl
 
     p = _p + dp;
     q = (_q * dq).normalized();
-
+    std::cout<<"delta(dp):"<<dp.transpose()<<"\tp(x):"<<p.transpose()<<"\t_p(x):"<<_p.transpose()<<"\tdq():"<<dq.coeffs().transpose()<<"----"<<std::endl;
     return true;
 }
 bool PoseLocalParameterization::ComputeJacobian(const double *x, double *jacobian) const

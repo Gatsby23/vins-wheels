@@ -505,10 +505,10 @@ void Estimator::processMeasurements()
                         Eigen::Vector3d velVec = Eigen::Vector3d(velVector_temp.front().second,0,0);
                         std::cout<<"velVec="<<velVec.transpose()<<endl;
                         velVec = Rs[frame_count] * velVec;
-                        Vs[frame_count]=velVec;
+//                        Vs[frame_count]=velVec;
 //                        std::cout<<"use vel Vs"<<setprecision(17)<<prevTime<<"\tvs="<<Vs[frame_count].transpose()<<"\tnorm= "<<Vs[frame_count].norm()<<std::endl;
                     }
-//                    std::cout<<"getWHEELSInterpolation "<<accVector[i].first<<"  "<<velVector.back().first<<" "<<velVector.back().second<<endl;
+//                    std::cout<<"getWHEELSInterpolation "<<accVector[i].first<<"  "<<velVector[i].first<<" "<<velVector[i].second<<endl;
                     processIMU_with_wheel(accVector[i].first, dt, accVector[i].second, gyrVector[i].second, velVector[i].second);//滑动窗口帧间IMU积分，
                 }
 //                cout<<"处理IMU后的Rs\n"<<Rs[frame_count]<<endl;
@@ -518,11 +518,13 @@ void Estimator::processMeasurements()
                 cout<<"length="<<length<<"   acc_origion="<<accVector[int(accVector.size())-1].second.transpose()<<"       acc_without_g"<<acc_without_g.transpose()<<"  r_acc_="<<r_acc_.transpose()<<"  g="<<g.transpose()<<endl;
                 //if(abs(length-9.8)<0.05)
                 writr_imu_data(accVector[int(accVector.size())-1].first,length,accVector[int(accVector.size())-1].second,acc_without_g,r_acc_);
+                writr_integrate_data(OUTPUT_FOLDER+"imu_int_origin.csv");
                 printf("------------------------processIMU \n");
             }
 
             mProcess.lock();
             processImage(feature.second, feature.first);//重要   特征点相关，时间戳// 处理图像 和IMU
+            writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_process_img.csv");
             prevTime = curTime;
             std::cout<<"latest_V= "<<latest_V.transpose()<<std::endl;
             printStatistics(*this, 0);//打印统计信息
@@ -574,6 +576,41 @@ void Estimator::writr_imu_data(double time,double length_,Eigen::Vector3d acc_or
           <<marginalization_flag<<","
           << endl;
     foutC.close();
+}
+
+void Estimator::writr_integrate_data(string path)
+{
+    // write result to file
+    string imu_data_path=OUTPUT_FOLDER+"imu_2.csv";
+    imu_data_path = path;
+    ofstream foutC(imu_data_path, ios::app);
+    foutC.setf(ios::fixed, ios::floatfield);
+    foutC.precision(0);
+    foutC << inputImageCnt << ",";
+    foutC.precision(7);
+    if(pre_integrations[frame_count]!= nullptr)
+    {
+//        std::cout<<"write "<<pre_integrations[frame_count]->delta_p_i_vel<<endl;
+        foutC << pre_integrations[frame_count]->delta_p_i_vel[0]<<","
+              <<pre_integrations[frame_count]->delta_p_i_vel[1] << ","
+              << pre_integrations[frame_count]->delta_p_i_vel[2] << ","
+              << pre_integrations[frame_count]->delta_p[0] << ","
+              << pre_integrations[frame_count]->delta_p[1]<< ","
+              << pre_integrations[frame_count]->delta_p[2]<< ","
+              << pre_integrations[frame_count]->delta_v[0]<< ","
+              << pre_integrations[frame_count]->delta_v[1]<< ","
+              << pre_integrations[frame_count]->delta_v[2]<< ","
+              <<Bas->x()<<","
+              <<Bas->y()<<","
+              <<Bas->z()<<","
+              <<Bgs->x()<<","
+              <<Bgs->y()<<","
+              <<Bgs->z()<<","
+              <<frame_count<<","
+              <<marginalization_flag<<","
+              << endl;
+        foutC.close();
+    }
 }
 
 void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector)
@@ -664,17 +701,19 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         first_imu = true;
         acc_0 = linear_acceleration;
         gyr_0 = angular_velocity;
+        vel_0 = Eigen::Vector3d(vel,0,0);
     }
 // 2.IMU 预积分类对象还没出现，创建一个
     if (!pre_integrations[frame_count])
     {
-        pre_integrations[frame_count] = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
+        pre_integrations[frame_count] = new IntegrationBase{acc_0, gyr_0, vel_0, Bas[frame_count], Bgs[frame_count]};
     }
     if (frame_count != 0)
     {
         // 3.预积分操作  是为了初始化的预积分
         Eigen::Vector3d velVec=Eigen::Vector3d(vel,0,0);
         pre_integrations[frame_count]->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
+//        cout<<"pre_integrations vel_0 "<<pre_integrations[frame_count]->vel_0.transpose()<<endl;
 
         Eigen::Vector3d delta_p_imu = pre_integrations[frame_count]->delta_q * (-tiv) + riv * pre_integrations[frame_count]->delta_p_i_vel + tiv;
 //        std::cout<<setprecision(6)
@@ -687,6 +726,7 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         //if(solver_flag != NON_LINEAR)
 //        tmp_pre_integration->push_back(dt, linear_acceleration, angular_velocity);
         tmp_pre_integration->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
+//        cout<<"tmp_pre_integration vel_0 "<<tmp_pre_integration->vel_0.transpose()<<endl;
         // 4.dt、加速度、角速度加到buf中
         dt_buf[frame_count].push_back(dt);
         linear_acceleration_buf[frame_count].push_back(linear_acceleration);
@@ -723,6 +763,7 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
     }
     acc_0 = linear_acceleration;
     gyr_0 = angular_velocity;
+    vel_0 = Eigen::Vector3d(vel,0,0);
 }
 
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header)
@@ -756,7 +797,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ImageFrame imageframe(image, header);
     imageframe.pre_integration = tmp_pre_integration;
     all_image_frame.insert(make_pair(header, imageframe));
-    tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
+    tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, vel_0, Bas[frame_count], Bgs[frame_count]};
 
     //[3]如果ESTIMATE_EXTRINSIC == 2表示需要在线估计imu和camera之间的外参数
     if(ESTIMATE_EXTRINSIC == 2)
@@ -897,6 +938,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//pnp求位姿
         f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化 depth
         optimization();//优化_used
+        writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_opt.csv");
         set<int> removeIndex;
         outliersRejection(removeIndex);
         f_manager.removeOutlier(removeIndex);
@@ -1516,7 +1558,7 @@ bool Estimator::failureDetection()
     if (abs(tmp_P.z() - last_P.z()) > 1)
     {
         //ROS_INFO(" big z translation");
-        //return true; 
+        //return true;
     }
     Matrix3d tmp_R = Rs[WINDOW_SIZE];
     Matrix3d delta_R = tmp_R.transpose() * last_R;
@@ -1594,7 +1636,21 @@ void Estimator::optimization()
             if (pre_integrations[j]->sum_dt > 10.0)
                 continue;
             IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);
+//            IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[j]);
             problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
+        }
+    }
+//    if(0)
+    if(0)
+    {
+//        problem.SetParameterBlockConstant(para_Pose[0]);//将imu和图像时间戳偏差设为定值
+        for (int i = frame_count-1; i < frame_count; i++)
+        {
+            int j = i + 1;
+            if (pre_integrations[j]->sum_dt > 10.0)
+                continue;
+            WHEELSFactor *wheels_factor = new WHEELSFactor(pre_integrations[j]);
+            problem.AddResidualBlock(wheels_factor, NULL,para_Pose[i], para_Pose[j]);
         }
     }
 
@@ -1614,13 +1670,13 @@ void Estimator::optimization()
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            break;
+//            break;
             imu_j++;
             if (imu_i != imu_j)
             {
                 Vector3d pts_j = it_per_frame.point;
                 ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
-                                                                 it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                 problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
             }
 
@@ -1630,13 +1686,13 @@ void Estimator::optimization()
                 if(imu_i != imu_j)
                 {
                     ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                 it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                     problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                 else
                 {
                     ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                 it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                     problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
 
@@ -1657,21 +1713,23 @@ void Estimator::optimization()
     //options.use_explicit_schur_complement = true;
     options.minimizer_progress_to_stdout = true;
     //options.use_nonmonotonic_steps = true;
-    if (marginalization_flag == MARGIN_OLD)
-        options.max_solver_time_in_seconds = SOLVER_TIME * 4.0 / 5.0;
-    else
-        options.max_solver_time_in_seconds = SOLVER_TIME;
+//    if (marginalization_flag == MARGIN_OLD)
+//        options.max_solver_time_in_seconds = SOLVER_TIME * 4.0 / 5.0;
+//    else
+//        options.max_solver_time_in_seconds = SOLVER_TIME;
     TicToc t_solver;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 //    cout << summary.BriefReport() << endl;
     ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
     std::cout << "summary.BriefReport()\n" << summary.BriefReport() << "\n";
+//    std::cout << summary.message << "\n";
+//    std::cout << summary.FullReport() << "\n";
     printf("solver costs: %f \n", t_solver.toc());
 
     double2vector();
     //printf("frame_count: %d \n", frame_count);
-    return ;
+//    return ;  //!!!!!!!!!!!!!!!!!!!!!!!
     if(frame_count < WINDOW_SIZE)
         return;
 
@@ -1690,7 +1748,7 @@ void Estimator::optimization()
                     last_marginalization_parameter_blocks[i] == para_SpeedBias[0])
                     drop_set.push_back(i);
             }
-            // construct new marginlization_factor
+            // construct new marginlization_factor  构建新的marginlization_factor
             MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
                                                                            last_marginalization_parameter_blocks,
@@ -1703,9 +1761,22 @@ void Estimator::optimization()
             if (pre_integrations[1]->sum_dt < 10.0)
             {
                 IMUFactor* imu_factor = new IMUFactor(pre_integrations[1]);
+//                IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[1]);
                 ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
-                                                                           vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
-                                                                           vector<int>{0, 1});
+                                                                               vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
+                                                                               vector<int>{0, 1});
+                marginalization_info->addResidualBlockInfo(residual_block_info);
+            }
+        }
+        if(0)//(USE_WHEELS)
+        {
+            if (pre_integrations[1]->sum_dt < 10.0)
+            {
+//                IMUFactor* imu_factor = new IMUFactor(pre_integrations[1]);
+                WHEELSFactor* wheels_factor = new WHEELSFactor(pre_integrations[1]);
+                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(wheels_factor, NULL,
+                                                                               vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
+                                                                               vector<int>{0, 1});
                 marginalization_info->addResidualBlockInfo(residual_block_info);
             }
         }
@@ -1733,10 +1804,10 @@ void Estimator::optimization()
                     {
                         Vector3d pts_j = it_per_frame.point;
                         ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
-                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                                                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f_td, loss_function,
-                                                                                        vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
-                                                                                        vector<int>{0, 3});
+                                                                                       vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
+                                                                                       vector<int>{0, 3});
                         marginalization_info->addResidualBlockInfo(residual_block_info);
                     }
                     if(STEREO && it_per_frame.is_stereo)
@@ -1745,7 +1816,7 @@ void Estimator::optimization()
                         if(imu_i != imu_j)
                         {
                             ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                                                                                                   it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{0, 4});
@@ -1754,7 +1825,7 @@ void Estimator::optimization()
                         else
                         {
                             ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                                                                                                   it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{2});
@@ -1766,7 +1837,7 @@ void Estimator::optimization()
         }
 
         TicToc t_pre_margin;
-        marginalization_info->preMarginalize();//会加入残差优化
+        marginalization_info->preMarginalize();
         ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
 
         TicToc t_margin;

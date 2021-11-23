@@ -13,6 +13,7 @@
 #include <eigen3/Eigen/Dense>
 #include <iostream>
 #include "../factor/imu_factor.h"
+#include "../factor/imu_factor_origin.h"
 #include "../utility/utility.h"
 #include <ros/ros.h>
 #include <map>

@@ -24,6 +24,7 @@ class IntegrationBase
         : acc_0{_acc_0}, gyr_0{_gyr_0}, linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
           linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
           jacobian{Eigen::Matrix<double, 18, 18>::Identity()}, covariance{Eigen::Matrix<double, 18, 18>::Zero()},
+          jacobian_origin{Eigen::Matrix<double, 15, 15>::Identity()}, covariance_origin{Eigen::Matrix<double, 15, 15>::Zero()},
           sum_dt{0.0}, delta_p{Eigen::Vector3d::Zero()}, delta_q{Eigen::Quaterniond::Identity()}, delta_v{Eigen::Vector3d::Zero()},
           delta_p_i_vel{Eigen::Vector3d::Zero()}
 
@@ -36,6 +37,41 @@ class IntegrationBase
         noise.block<3, 3>(12, 12) =  (ACC_W * ACC_W) * Eigen::Matrix3d::Identity();
         noise.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
         noise.block<3, 3>(18, 18) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();//轮速
+
+        noise_origin =  Eigen::Matrix<double, 18, 18>::Zero();
+        noise_origin.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(3, 3) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(6, 6) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(9, 9) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(12, 12) =  (ACC_W * ACC_W) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
+    }
+    IntegrationBase(const Eigen::Vector3d &_acc_0, const Eigen::Vector3d &_gyr_0, const Eigen::Vector3d &_vel_0,
+                    const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
+            : acc_0{_acc_0}, gyr_0{_gyr_0}, vel_0{_vel_0}, linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
+              linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
+              jacobian{Eigen::Matrix<double, 18, 18>::Identity()}, covariance{Eigen::Matrix<double, 18, 18>::Zero()},
+              jacobian_origin{Eigen::Matrix<double, 15, 15>::Identity()}, covariance_origin{Eigen::Matrix<double, 15, 15>::Zero()},
+              sum_dt{0.0}, delta_p{Eigen::Vector3d::Zero()}, delta_q{Eigen::Quaterniond::Identity()}, delta_v{Eigen::Vector3d::Zero()},
+              delta_p_i_vel{Eigen::Vector3d::Zero()}
+
+    {
+        noise = Eigen::Matrix<double, 21, 21>::Zero();
+        noise.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
+        noise.block<3, 3>(3, 3) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
+        noise.block<3, 3>(6, 6) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
+        noise.block<3, 3>(9, 9) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
+        noise.block<3, 3>(12, 12) =  (ACC_W * ACC_W) * Eigen::Matrix3d::Identity();
+        noise.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
+        noise.block<3, 3>(18, 18) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();//轮速
+
+        noise_origin =  Eigen::Matrix<double, 18, 18>::Zero();
+        noise_origin.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(3, 3) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(6, 6) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(9, 9) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(12, 12) =  (ACC_W * ACC_W) * Eigen::Matrix3d::Identity();
+        noise_origin.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
     }
 
     void push_back(double dt, const Eigen::Vector3d &acc, const Eigen::Vector3d &gyr)
@@ -216,10 +252,8 @@ class IntegrationBase
             F.block<3, 3>(0, 6) = MatrixXd::Identity(3,3) * _dt;
             F.block<3, 3>(0, 9) = -0.25 * (delta_q.toRotationMatrix() + result_delta_q.toRotationMatrix()) * _dt * _dt;
             F.block<3, 3>(0, 12) = -0.25 * result_delta_q.toRotationMatrix() * R_a_1_x * _dt * _dt * -_dt;
-
             F.block<3, 3>(3, 3) = Matrix3d::Identity() - R_w_x * _dt;
             F.block<3, 3>(3, 12) = -1.0 * MatrixXd::Identity(3,3) * _dt;
-
             F.block<3, 3>(6, 3) = -0.5 * delta_q.toRotationMatrix() * R_a_0_x * _dt +
                                   -0.5 * result_delta_q.toRotationMatrix() * R_a_1_x * (Matrix3d::Identity() - R_w_x * _dt) * _dt;
             F.block<3, 3>(6, 6) = Matrix3d::Identity();
@@ -232,6 +266,8 @@ class IntegrationBase
                                    -0.5 * result_delta_q.toRotationMatrix() * R_vel_1_x * (Matrix3d::Identity() - R_w_x * _dt) * _dt);  //对角度
             F.block<3, 3>(15, 12) = (-0.5 * result_delta_q.toRotationMatrix() * R_vel_1_x * _dt);//对角度bias
             F.block<3, 3>(15, 15) = Matrix3d::Identity();//对轮速计偏差
+
+            MatrixXd F_origin = F.matrix().block<15,15>(0,0);
             //cout<<"A"<<endl<<A<<endl;
 
             MatrixXd V = MatrixXd::Zero(18,21);
@@ -253,10 +289,15 @@ class IntegrationBase
             V.block<3, 3>(15, 9) = V.block<3, 3>(15, 3);
             V.block<3, 3>(15, 18) = 0.5 * (delta_q.toRotationMatrix()*RIV[0]+result_delta_q.toRotationMatrix()*RIV[0]) * _dt;
 
+            MatrixXd V_origin = V.matrix().block<15,18>(0,0);
             //step_jacobian = F;
             //step_V = V;
             jacobian = F * jacobian;
+            jacobian_origin = F_origin * jacobian_origin;
+
             covariance = F * covariance * F.transpose() + V * noise * V.transpose();
+            covariance_origin = F_origin * covariance_origin * F_origin.transpose() + V_origin * noise_origin * V_origin.transpose();
+
         }
 
     }
@@ -308,6 +349,7 @@ class IntegrationBase
 //        <<delta_p_i_vel.transpose()<<"\tdelta_q: "<<delta_q.coeffs().transpose()<<
 //                 " delta_p: "<<delta_p.transpose()
 //                 <<"\n linearized_ba "<<linearized_ba.transpose()<<"\tlinearized_bg "<<linearized_bg.transpose()<<endl;
+//        std::cout<<"vel_0 "<<vel_0.transpose()<<"\tvel_1 "<<vel_1.transpose()<<std::endl;
         midPointIntegration_wheel(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
                                   linearized_ba, linearized_bg,
                                   result_delta_p, result_delta_q, result_delta_v,
@@ -327,6 +369,7 @@ class IntegrationBase
         acc_0 = acc_1;
         gyr_0 = gyr_1;
         vel_0 = vel_1;
+//        std::cout<<"after vel_0 "<<vel_0.transpose()<<"\tvel_1 "<<vel_1.transpose()<<std::endl;
     }
 
     Eigen::Matrix<double, 15, 1> evaluate(const Eigen::Vector3d &Pi, const Eigen::Quaterniond &Qi, const Eigen::Vector3d &Vi, const Eigen::Vector3d &Bai, const Eigen::Vector3d &Bgi,
@@ -385,16 +428,45 @@ class IntegrationBase
         residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (G * sum_dt + Vj - Vi) - corrected_delta_v;
         residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
         residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
-        residuals.block<3, 1>(O_P_Vel,0)=Qi.inverse() * (Pj - Pi) - TIV[0] + (Qi.inverse()*Qj) * TIV[0] - corrected_delta_p_i_vel;
+        residuals.block<3, 1>(O_P_Vel,0)=Qi.inverse() * (Pj - Pi)  - delta_p_i_vel;//- TIV[0] + (Qi.inverse()*Qj) * TIV[0]
 //        residuals.block<3, 1>(O_P_Vel,0)=Eigen::Vector3d::Zero();
         Eigen::Vector3d temp_ = -TIV[0] + corrected_delta_q * TIV[0];
         Eigen::Vector3d temp2_ = Qi.inverse() * (Pj - Pi);
-        Eigen::Vector3d temp3_ = (Pj - Pi);
-        std::cout<<"delta_p_i_vel:                          "<<corrected_delta_p_i_vel.transpose();
+        Eigen::Vector3d temp3_ = Qi.inverse() * (Pj - Pi) - TIV[0] + (Qi.inverse()*Qj) * TIV[0];
+        std::cout<<"corrected_delta_p_i_vel: "<<setprecision(10)<<corrected_delta_p_i_vel.transpose();
+        std::cout<<"\t\t-TIV[0] + corrected_delta_q * TIV[0]: "<<setprecision(10)<<temp_.transpose()<<std::endl;
+        std::cout<<"delta_p_i_vel:***********\t"<<setprecision(10)<<delta_p_i_vel.transpose()<<"\tsum_dt: "<<sum_dt<<std::endl;
+        std::cout<<"delta(P)-TIV :***********\t"<<setprecision(10)<<temp2_.transpose();
+        std::cout<<"\t\tdelta(P):   "<<setprecision(10)<<temp3_.transpose()<<"\nVi:"<<Vi.norm()<<"\tVj:"<<Vj.norm()<<std::endl;
+        std::cout<<"Bgi: "<<Bgi.transpose()<<"\tBai:"<<Bai.transpose()<<std::endl;
+
+        return residuals;
+    }
+
+    Eigen::Matrix<double, 3, 1> evaluate_only_wheel(const Eigen::Vector3d &Pi, const Eigen::Quaterniond &Qi,
+                                                const Eigen::Vector3d &Pj, const Eigen::Quaterniond &Qj)
+    {
+        Eigen::Matrix<double, 3, 1> residuals;
+
+        Eigen::Matrix3d dp_dba = jacobian.block<3, 3>(O_P, O_BA);
+        Eigen::Matrix3d dp_dbg = jacobian.block<3, 3>(O_P, O_BG);
+
+        Eigen::Matrix3d dq_dbg = jacobian.block<3, 3>(O_R, O_BG);
+
+        Eigen::Matrix3d dv_dba = jacobian.block<3, 3>(O_V, O_BA);
+        Eigen::Matrix3d dv_dbg = jacobian.block<3, 3>(O_V, O_BG);
+
+        Eigen::Matrix3d dyita_dbg = jacobian.block<3, 3>(O_P_Vel, O_BG);
+
+        residuals.block<3, 1>(0,0)=Qi.inverse() * (Pj - Pi)  - delta_p_i_vel;//- TIV[0] + (Qi.inverse()*Qj) * TIV[0]
+//        residuals.block<3, 1>(O_P_Vel,0)=Eigen::Vector3d::Zero();
+        Eigen::Vector3d temp_ = -TIV[0] + (Qi.inverse()*Qj) * TIV[0];
+        Eigen::Vector3d temp2_ = Qi.inverse() * (Pj - Pi);
+        Eigen::Vector3d temp3_ = Qi.inverse() * (Pj - Pi) - TIV[0] + (Qi.inverse()*Qj) * TIV[0];
+        std::cout<<"delta_p_i_vel:                          "<<delta_p_i_vel.transpose();
         std::cout<<"\t\t-TIV[0] + corrected_delta_q * TIV[0]:   "<<temp_.transpose()<<std::endl;
         std::cout<<"Qi.inverse() * (Pj - Pi):               "<<temp2_.transpose();
-        std::cout<<"\t\t(Pj - Pi):                              "<<temp3_.transpose()<<std::endl;
-        std::cout<<"Bgi: "<<Bgi.transpose()<<"\tBai:"<<Bai.transpose()<<std::endl;
+        std::cout<<"\t\tdelta(P):                              "<<temp3_.transpose()<<std::endl;
 
         return residuals;
     }
@@ -408,9 +480,11 @@ class IntegrationBase
     Eigen::Vector3d linearized_ba, linearized_bg;
 
     Eigen::Matrix<double, 18, 18> jacobian, covariance;
+    Eigen::Matrix<double, 15, 15> jacobian_origin, covariance_origin;
     Eigen::Matrix<double, 15, 15> step_jacobian;
     Eigen::Matrix<double, 15, 18> step_V;
     Eigen::Matrix<double, 21, 21> noise;
+    Eigen::Matrix<double, 18, 18> noise_origin;
 
     double sum_dt;
     Eigen::Vector3d delta_p;

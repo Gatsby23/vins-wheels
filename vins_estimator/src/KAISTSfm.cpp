@@ -89,7 +89,7 @@ int main(int argc, char** argv)
     ofstream path_Save;
     path_Save.open((OUTPUT_FOLDER + "/vio_tum.txt").c_str() );
     path_Save<<fixed;
-    OUTPUT_FOLDER = strPathToSequence;
+//    OUTPUT_FOLDER = strPathToSequence;
 	outFile = fopen((OUTPUT_FOLDER + "/vio.txt").c_str(),"w");
 	if(outFile == NULL)
 		printf("Output path dosen't exist: %s\n", OUTPUT_FOLDER.c_str());

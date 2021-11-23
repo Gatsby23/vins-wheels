@@ -29,6 +29,7 @@
 #include "../initial/initial_alignment.h"
 #include "../initial/initial_ex_rotation.h"
 #include "../factor/imu_factor.h"
+#include "../factor/imu_factor_origin.h"
 #include "../factor/pose_local_parameterization.h"
 #include "../factor/marginalization_factor.h"
 #include "../factor/projectionTwoFrameOneCamFactor.h"
@@ -36,7 +37,7 @@
 #include "../factor/projectionOneFrameTwoCamFactor.h"
 #include "../featureTracker/feature_tracker.h"
 
-
+#include "../factor/wheels_factor.h"
 class Estimator
 {
   public:
@@ -89,6 +90,7 @@ class Estimator
     bool IMUAvailable(double t);
     bool WHEELSAvailable(double t);
     void writr_imu_data(double time,double length_,Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);
+    void writr_integrate_data(string path);
     //void writr_imu_data(Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);//自己写的 存储IMU数据
     void initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector);
 
@@ -147,7 +149,7 @@ class Estimator
     double Headers[(WINDOW_SIZE + 1)];
 
     IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];
-    Vector3d acc_0, gyr_0;
+    Vector3d acc_0, gyr_0,vel_0;
 
     vector<double> dt_buf[(WINDOW_SIZE + 1)];
     vector<Vector3d> linear_acceleration_buf[(WINDOW_SIZE + 1)];
