@@ -116,7 +116,7 @@ class WHEELSFactor : public ceres::SizedCostFunction<3, 7, 7>
                 Eigen::Map<Eigen::Matrix<double, 3, 7, Eigen::RowMajor>> jacobian_pose_i(jacobians[0]);//将c数组转成eigen矩阵，复用了数组里的内存空间
                 jacobian_pose_i.setZero();
 
-//                jacobian_pose_i.block<3,3>(0,O_P) = -Qi.inverse().toRotationMatrix();// 轮速计
+                jacobian_pose_i.block<3,3>(0,O_P) = -Qi.inverse().toRotationMatrix();// 轮速计
 //                jacobian_pose_i.block<3, 3>(0, O_R) = Utility::skewSymmetric(Qi.inverse() * ( Pj - Pi )) + Utility::skewSymmetric(Qi.inverse() * Qj * TIV[0]);
 
                 std::cout<<"jacobian_pose_i\n"<<jacobian_pose_i<<std::endl;

@@ -1635,6 +1635,10 @@ void Estimator::optimization()
             int j = i + 1;
             if (pre_integrations[j]->sum_dt > 10.0)
                 continue;
+            std::cout<<"frame_count: "<<i<<"\t sumdt="<<setprecision(10)<<pre_integrations[j]->sum_dt
+            <<"\t pre del_p_vel="<<pre_integrations[j]->delta_p_i_vel.transpose()<<"\tdelta_v="<<pre_integrations[j]->delta_v.transpose()
+            <<"\tpos j:"<<para_Pose[j][0]<<"  "<<para_Pose[j][1]<<"  "<<para_Pose[j][2]<<endl;
+
             IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);
 //            IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[j]);
             problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
@@ -1644,7 +1648,7 @@ void Estimator::optimization()
     if(0)
     {
 //        problem.SetParameterBlockConstant(para_Pose[0]);//将imu和图像时间戳偏差设为定值
-        for (int i = frame_count-1; i < frame_count; i++)
+        for (int i = 0; i < frame_count; i++)
         {
             int j = i + 1;
             if (pre_integrations[j]->sum_dt > 10.0)
@@ -1977,7 +1981,7 @@ void Estimator::slideWindow()
 
                 //重新更新预积分的变量
                 delete pre_integrations[WINDOW_SIZE];
-                pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
+                pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0,vel_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
 
                 dt_buf[WINDOW_SIZE].clear();
                 linear_acceleration_buf[WINDOW_SIZE].clear();
@@ -2025,7 +2029,7 @@ void Estimator::slideWindow()
                 Bgs[frame_count - 1] = Bgs[frame_count];
 
                 delete pre_integrations[WINDOW_SIZE];
-                pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
+                pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, vel_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
 
                 dt_buf[WINDOW_SIZE].clear();
                 linear_acceleration_buf[WINDOW_SIZE].clear();

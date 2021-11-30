@@ -428,7 +428,7 @@ class IntegrationBase
         residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (G * sum_dt + Vj - Vi) - corrected_delta_v;
         residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
         residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
-        residuals.block<3, 1>(O_P_Vel,0)=Qi.inverse() * (Pj - Pi)  - delta_p_i_vel;//- TIV[0] + (Qi.inverse()*Qj) * TIV[0]
+        residuals.block<3, 1>(O_P_Vel,0)=Qi.inverse() * (Pj - Pi)  - delta_p_i_vel - TIV[0] + (Qi.inverse()*Qj) * TIV[0];
 //        residuals.block<3, 1>(O_P_Vel,0)=Eigen::Vector3d::Zero();
         Eigen::Vector3d temp_ = -TIV[0] + corrected_delta_q * TIV[0];
         Eigen::Vector3d temp2_ = Qi.inverse() * (Pj - Pi);

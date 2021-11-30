@@ -93,7 +93,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 //        std::cout<<"sqrt_info_wheel origin :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
 //        sqrt_info_wheel=sqrt_info;
 //        std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
-//        sqrt_info_wheel.matrix().block<15,3>(0,15)=Eigen::Matrix<double,15,3>::Zero();
+        sqrt_info_wheel.matrix().block<15,3>(0,15)=Eigen::Matrix<double,15,3>::Zero();
 //        std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
         std::cout<<"residual raw:\t"<<setprecision(6)<<residual.transpose()<<endl;
 //        residual(17)=0;
