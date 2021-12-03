@@ -78,10 +78,10 @@ void GlobalOptimization::getGlobalOdom(Eigen::Vector3d &odomP, Eigen::Quaternion
 
 void GlobalOptimization::inputGPS(double t, double latitude, double longitude, double altitude, double posAccuracy)
 {
-    printf("raw gps: t: %f x: %f y: %f z:%f \n", t, latitude, longitude, altitude);
+//    printf("raw gps: t: %f x: %f y: %f z:%f \n", t, latitude, longitude, altitude);
 	double xyz[3];
 	GPS2XYZ(latitude, longitude, altitude, xyz);
-    printf("sec gps: t: %f x: %f y: %f z:%f \n", t, xyz[0], xyz[1], xyz[2]);
+//    printf("sec gps: t: %f x: %f y: %f z:%f \n", t, xyz[0], xyz[1], xyz[2]);
 	vector<double> tmp{xyz[0], xyz[1], xyz[2], posAccuracy};
     printf("new gps: t: %f x: %f y: %f z:%f \n", t, tmp[0], tmp[1], tmp[2]);
 	GPSPositionMap[t] = tmp;
@@ -104,7 +104,7 @@ void GlobalOptimization::optimize()
             options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
             //options.minimizer_progress_to_stdout = true;
             //options.max_solver_time_in_seconds = SOLVER_TIME * 3;
-            options.max_num_iterations = 5;
+            options.max_num_iterations = 15;
             ceres::Solver::Summary summary;
             ceres::LossFunction *loss_function;
             loss_function = new ceres::HuberLoss(1.0);
@@ -215,7 +215,7 @@ void GlobalOptimization::optimize()
             }
             //mPoseMap.unlock();
             ceres::Solve(options, &problem, &summary);
-            //std::cout << summary.BriefReport() << "\n";
+            std::cout << summary.BriefReport() << "\n";
 
             // update global pose
             //mPoseMap.lock();

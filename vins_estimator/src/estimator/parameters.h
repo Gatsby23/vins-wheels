@@ -31,11 +31,14 @@ extern int ESTIMATE_EXTRINSIC;
 
 extern double ACC_N, ACC_W;
 extern double GYR_N, GYR_W;
+extern double ENC_N; // 轮速计噪声方差
 
 extern std::vector<Eigen::Matrix3d> RIC;
 extern std::vector<Eigen::Vector3d> TIC;
 extern std::vector<Eigen::Matrix3d> RIV;
 extern std::vector<Eigen::Vector3d> TIV;
+//extern Eigen::Matrix3d RIO; // 轮速计到IMU外参R  vins-gps-wheels
+//extern Eigen::Vector3d TIO; // 轮速计到IMU外参T
 extern Eigen::Vector3d G;
 
 extern double BIAS_ACC_THRESHOLD;

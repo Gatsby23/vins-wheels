@@ -16,6 +16,7 @@
 #include <string>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <cv_bridge/cv_bridge.h>
 #include "estimator/estimator.h"
 #include "utility/visualization.h"
@@ -30,9 +31,10 @@ void LoadImages(const string &strPathToSequence,
 bool readImuFile(ifstream &imufile,double &time,
                  Eigen::Vector3d &mag,Eigen::Vector3d &acc,Eigen::Vector3d &gyr,
                  std::vector<std::vector<double>> &odom_ ,sensor_msgs::Imu &imuMsg);
-bool readWheels(ifstream &wheelsFile,double &time_,
-                Eigen::Vector2d &wheels,
+bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vector2d &wheels,
                 double &vel_,double &ang_vel_);//文件流 时间 轮编码计数 轮速 角速度
+bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg);
+
 Estimator estimator;
 
 Eigen::Matrix3d c1Rc0, c0Rc1;
@@ -66,7 +68,7 @@ int main(int argc, char** argv)
     ros::Publisher pubLeftImage = n.advertise<sensor_msgs::Image>(IMAGE0_TOPIC,1000);
     ros::Publisher pubRightImage = n.advertise<sensor_msgs::Image>(IMAGE1_TOPIC,1000);
     ros::Publisher pubImu = n.advertise<sensor_msgs::Imu>(IMU_TOPIC,1000);
-
+    ros::Publisher gps_publisher=n.advertise<sensor_msgs::NavSatFix>("/gps/data_raw", 100, true);
     // load image list
     const string strPathToSequence=argv[2];
     vector<string> vstrImageFilenames0;
@@ -77,6 +79,8 @@ int main(int argc, char** argv)
     ifstream imu_file_st(strPathImu.c_str());
     const string strPathWheels=argv[4];  //轮速计地址
     ifstream wheels_file_st(strPathWheels.c_str());
+    const string strPathGps=argv[5];  //轮速计地址
+    ifstream gps_file_st(strPathGps.c_str());
 
 //	FILE* file;
 //	file = std::fopen((dataPath + "times.txt").c_str() , "r");
@@ -105,7 +109,8 @@ int main(int argc, char** argv)
         printf("Output path dosen't exist: %s\n", OUTPUT_FOLDER.c_str());
 
     double imu_time=0;
-    double wheels_time=0;
+    double wheels_time=0,last_wheels_time=0;
+    double gps_time=0;
     Eigen::Vector2d wheels_cnt;
     for (size_t i = 0; i < vTimestamps.size(); i++)
     {
@@ -116,25 +121,34 @@ int main(int argc, char** argv)
             sensor_msgs::Imu imuMsg;
             while(imu_time<vTimestamps[i]) {
                 if(readImuFile(imu_file_st, imu_time, mag, acc, gyr, odom, imuMsg)) {
-//                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<"\tacc="<<acc.transpose()<<"\tnorm="<<acc.norm()<<endl;
+                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<"\tacc="<<acc.transpose()<<"\tnorm="<<acc.norm()<<endl;
                     pubImu.publish(imuMsg);
                     estimator.inputIMU(imu_time, acc, gyr);
                 }
                 else break;
             }
             double vel,ang_vel;
-            if(wheels_time==0)
-                readWheels(wheels_file_st,wheels_time,wheels_cnt,vel,ang_vel);//先读一遍
+            if(last_wheels_time==0)
+                readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel);//先读一遍
             while(wheels_time<imu_time){
                 {
-                    double last_wheels_time=wheels_time;
-                    if(readWheels(wheels_file_st,wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
+//                    double last_wheels_time=wheels_time;
+                    if(readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
                     {
                         cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
                         estimator.inputVEL(wheels_time, vel, ang_vel);
                     }
                     else break;
                 }
+            }
+            while(gps_time < imu_time)
+            {
+                sensor_msgs::NavSatFix gps_msg;
+                if(readGps(gps_file_st,gps_time,gps_msg))
+                {
+                    gps_publisher.publish(gps_msg);
+                }
+                else break;
             }
             printf("\nprocess image %d with time:%f\n", (int)i,vTimestamps[i]);
             leftImagePath = vstrImageFilenames0[i];
@@ -346,7 +360,7 @@ bool readImuFile(ifstream &imufile,double &time,Eigen::Vector3d &mag,Eigen::Vect
     return 1;
 }
 //读取里程计数据
-bool readWheels(ifstream &wheelsFile,double &time_,Eigen::Vector2d &wheels,
+bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vector2d &wheels,
                 double &vel_,double &ang_vel_)
 {
     const double coeff_vel=1;
@@ -373,7 +387,8 @@ bool readWheels(ifstream &wheelsFile,double &time_,Eigen::Vector2d &wheels,
 
     double time_now = stod(lineArray[0])/1e9;
     time_now=time_now-0.0;//时间差矫正
-    double dt = time_now-time_;
+//    double dt = time_now-time_;
+    double dt = time_now-time_last_;
     //轮速
     Eigen::Vector2d wheels_now;
     wheels_now.x() = stod(lineArray[1])*0.623022*M_PI/4096.0;//左轮速
@@ -381,12 +396,14 @@ bool readWheels(ifstream &wheelsFile,double &time_,Eigen::Vector2d &wheels,
 
     Eigen::Vector2d delta_wheels;
     delta_wheels=wheels_now-wheels;
-    if(time_==0){
-        time_=time_now;
+    if(time_last_==0){
+        time_last_=time_now;
         wheels=wheels_now;
         return false;
     }
-    time_=time_now;
+    time_=0.5f*(time_now+time_last_);
+    std::cout<<"time_now="<<setprecision(17)<<time_now<<" mid="<<0.5*(time_now+time_last_)<<std::endl;
+    time_last_=time_now;
     wheels=wheels_now;
     vel_ = ( delta_wheels.x() + delta_wheels.y() )/2.0/dt;
 //    imu_odom.add_odom_linear(time_,vel_,steer_);
@@ -402,87 +419,43 @@ bool readWheels(ifstream &wheelsFile,double &time_,Eigen::Vector2d &wheels,
 
     double delta_x = cos(delta_th) * delta_dis;
     double delta_y = -sin(delta_th) * delta_dis;
-//    Eigen::Matrix3d A=Eigen::Matrix3d::Identity();
-//    if(delta_th>0.00)
-//    {
-//        A(0,0)= sin(delta_th)/delta_th;
-//        A(1,1)=sin(delta_th)/delta_th;
-//        A(0,1)=-(1- cos(delta_th))/delta_th;
-//        A(1,0)=(1- cos(delta_th))/delta_th;
-//    }
-//    Eigen::Matrix3d R_th =Eigen::AngleAxisd(accumulate_th_,Eigen::Vector3d::UnitZ()).toRotationMatrix();
-//    Eigen::Vector3d delta_p=R_th*A*Eigen::Vector3d(0,delta_dis,0);
-//    accumulate_y_ = accumulate_y_+delta_p(1);
-//    accumulate_x_ = accumulate_x_+delta_p(0);
-
-//    accumulate_y_ = accumulate_y_ + cos(accumulate_th_)*delta_dis;//绕Z轴旋转变化到世界坐标系
-//    accumulate_x_ = accumulate_x_ - sin(accumulate_th_)*delta_dis;
-
-//    accumulate_x_ = accumulate_x_ + cos(accumulate_th_)*delta_x - sin(accumulate_th_)*delta_y;//绕Z轴旋转变化到世界坐标系
-//    accumulate_y_ = accumulate_y_ + sin(accumulate_th_)*delta_x + cos(accumulate_th_)*delta_y;
-//    accumulate_th_ += delta_th;
-
-//    tf::Quaternion q = tf::createQuaternionFromYaw(accumulate_th_);
-//    vector<double>odom_stampte(8,0);
-//    odom_stampte.reserve(8);
-//    odom_stampte.reserve(8);
-//    odom_stampte[0]=time_;
-//    odom_stampte[1]=accumulate_x_;
-//    odom_stampte[2]=accumulate_y_;
-//    odom_stampte[3]=0.0f;
-//    odom_stampte[4]=q.x();
-//    odom_stampte[5]=q.y();
-//    odom_stampte[6]=q.z();
-//    odom_stampte[7]=q.w();
-//    odom_.push_back(odom_stampte);
-//
-//    // publish odom
-//    geometry_msgs::Twist last_vel_;
-//    last_vel_.linear.x=linearVel;
-//    last_vel_.linear.y=0;
-//    last_vel_.linear.z=0;
-//    last_vel_.angular.x=0;
-//    last_vel_.angular.y=0;
-//    last_vel_.angular.z=odomAngleVel;
-//    nav_msgs::Odometry current_odom_msgs_;
-//    current_odom_msgs_.header.stamp = ros::Time(time_);
-//    current_odom_msgs_.header.frame_id = "world";
-//    current_odom_msgs_.child_frame_id = "odom";
-//    current_odom_msgs_.pose.pose.position.x = accumulate_x_;
-//    current_odom_msgs_.pose.pose.position.y = accumulate_y_;
-//    current_odom_msgs_.pose.pose.position.z = 0.0;
-//    current_odom_msgs_.pose.pose.orientation.x = q.x();
-//    current_odom_msgs_.pose.pose.orientation.y = q.y();
-//    current_odom_msgs_.pose.pose.orientation.z = q.z();
-//    current_odom_msgs_.pose.pose.orientation.w = q.w();
-//    current_odom_msgs_.pose.covariance[0]  = 1e-3;  // x cov
-//    current_odom_msgs_.pose.covariance[7]  = 1e-3;  // y cov
-//    current_odom_msgs_.pose.covariance[14] = 1e6;  // z cov
-//    current_odom_msgs_.pose.covariance[21] = 1e6;  // roll cov
-//    current_odom_msgs_.pose.covariance[28] = 1e6;  // pitch cov
-//    current_odom_msgs_.pose.covariance[35] = 1e-3;   //yaw cov
-//
-//    current_odom_msgs_.twist.twist = last_vel_;
-//    current_odom_msgs_.twist.covariance[0]  = 1e-2;  // x cov
-//    current_odom_msgs_.twist.covariance[7]  = 1e10;  // y cov
-//    current_odom_msgs_.twist.covariance[14] = 1e10;  // z cov
-//    current_odom_msgs_.twist.covariance[21] = 1e10;  // roll cov
-//    current_odom_msgs_.twist.covariance[28] = 1e10;  // pitch cov
-//    current_odom_msgs_.twist.covariance[35] = 5e-2;   //yaw cov
-//    if(pub_or_not)
-//        odom_pub.publish(current_odom_msgs_);
-//
-////    if(time_/1e6  - pos_stamped.header.stamp)
-//    geometry_msgs::PoseStamped pos_stamped;
-//    pos_stamped.header.frame_id="world";
-//    pos_stamped.header.stamp=ros::Time(wheel_time);
-//    pos_stamped.pose=current_odom_msgs_.pose.pose;
-//    wheelsPath.header.stamp=ros::Time(wheel_time);
-//    wheelsPath.header.frame_id = "world";
-//    wheelsPath.poses.push_back(pos_stamped);
-//    if(pub_or_not)
-//        wheels_path_pub.publish(wheelsPath);
-
-//    cout<<"time="<<time<<"  wheels="<<wheels.transpose()<<endl;
     return true;
+}
+
+bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
+{
+    string FileGetline;
+    if(!File.eof())
+        std::getline(File,FileGetline);
+    else{
+        std::cout<<"END OF WHEELS FILE "<<std::endl;
+        return false;
+    }
+    if(File.eof()){
+        std::cout<<"END OF WHEELS FILE  publish odometer"<<std::endl;
+        return false;
+    }
+
+    stringstream gps_ss(FileGetline);
+    vector<string>line_data_vec;
+    string value_str;
+    while (getline(gps_ss, value_str, ','))
+    {
+        line_data_vec.push_back(value_str);
+    }
+    time_ = std::stod(line_data_vec[0])/1e9;
+    ros::Time stamp(time_);
+    gps_msg.header.stamp = stamp;
+    gps_msg.header.frame_id = "gps_frame";
+    gps_msg.status.status = sensor_msgs::NavSatStatus::STATUS_FIX; std::stoi(line_data_vec[1]);
+    gps_msg.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
+    gps_msg.latitude = std::stod(line_data_vec[1]);
+    gps_msg.longitude = std::stod(line_data_vec[2]);
+    gps_msg.altitude = std::stod(line_data_vec[3]);
+    for (int i = 0; i < 9; i++)
+    {
+        gps_msg.position_covariance[i] = std::stod(line_data_vec[i + 4]) / 50;
+    }
+    return true;
+//    gps_publisher.publish(gps_msg);
 }

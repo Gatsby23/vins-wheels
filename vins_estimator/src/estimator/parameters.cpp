@@ -13,12 +13,16 @@ double INIT_DEPTH;
 double MIN_PARALLAX;
 double ACC_N, ACC_W;
 double GYR_N, GYR_W;
+double ENC_N; // 轮速计噪声方差
 
 std::vector<Eigen::Matrix3d> RIC;
 std::vector<Eigen::Vector3d> TIC;
 
 std::vector<Eigen::Matrix3d> RIV;
 std::vector<Eigen::Vector3d> TIV;
+
+Eigen::Matrix3d RIO; // 轮速计到IMU外参R  vins-gps-wheels
+Eigen::Vector3d TIO; // 轮速计到IMU外参T
 
 Eigen::Vector3d G{0.0, 0.0, 9.8};
 
@@ -104,6 +108,7 @@ void readParameters(std::string config_file)
         ACC_W = fsSettings["acc_w"];
         GYR_N = fsSettings["gyr_n"];
         GYR_W = fsSettings["gyr_w"];
+        ENC_N = fsSettings["enc_n"]; // 轮速计噪声方差
         G.z() = fsSettings["g_norm"];
     }
 

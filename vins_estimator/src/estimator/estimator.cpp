@@ -1641,6 +1641,7 @@ void Estimator::optimization()
 
             IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);
 //            IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[j]);
+//            IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[j]);
             problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
         }
     }
@@ -1766,6 +1767,7 @@ void Estimator::optimization()
             {
                 IMUFactor* imu_factor = new IMUFactor(pre_integrations[1]);
 //                IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[1]);
+//                IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[1]);
                 ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
                                                                                vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
                                                                                vector<int>{0, 1});
@@ -1962,7 +1964,7 @@ void Estimator::slideWindow()
                     dt_buf[i].swap(dt_buf[i + 1]);
                     linear_acceleration_buf[i].swap(linear_acceleration_buf[i + 1]);
                     angular_velocity_buf[i].swap(angular_velocity_buf[i + 1]);
-                    vel_velocity_buf[i].swap(angular_velocity_buf[i + 1]);
+                    vel_velocity_buf[i].swap(vel_velocity_buf[i + 1]);
 
                     Vs[i].swap(Vs[i + 1]);
                     Bas[i].swap(Bas[i + 1]);

@@ -79,6 +79,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
         cov_inv.matrix().block<15,15>(0,0) = Eigen::Matrix<double,15,15>::Zero();
         Eigen::Matrix<double, 18, 18> sqrt_info_wheel=Eigen::LLT<Eigen::Matrix<double, 18, 18>>(pre_integration->covariance.inverse()).matrixL().transpose();;
         Eigen::Matrix<double, 18, 18> sqrt_info_wheel_test=Eigen::LLT<Eigen::Matrix<double, 18, 18>>(pre_integration->covariance.inverse()).matrixL().transpose();;
+        std::cout<<"sqrt_info_wheel\n"<<sqrt_info_wheel<<std::endl;
 //        std::cout<<"pre_integration->covariance:\n"<<setprecision(6)<<pre_integration->covariance<<endl;
 //        std::cout<<"pre_integration->jacobian:\n"<<setprecision(6)<<pre_integration->jacobian<<endl;
 //        std::cout<<"pre_integration->covariance.inverse():\n"<<setprecision(6)<<pre_integration->covariance.inverse()<<std::endl;
@@ -93,7 +94,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 //        std::cout<<"sqrt_info_wheel origin :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
 //        sqrt_info_wheel=sqrt_info;
 //        std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
-        sqrt_info_wheel.matrix().block<15,3>(0,15)=Eigen::Matrix<double,15,3>::Zero();
+//        sqrt_info_wheel.matrix().block<15,3>(0,15)=Eigen::Matrix<double,15,3>::Zero();
 //        std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
         std::cout<<"residual raw:\t"<<setprecision(6)<<residual.transpose()<<endl;
 //        residual(17)=0;
@@ -109,6 +110,8 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 
             Eigen::Matrix3d dv_dba = pre_integration->jacobian.template block<3, 3>(O_V, O_BA);
             Eigen::Matrix3d dv_dbg = pre_integration->jacobian.template block<3, 3>(O_V, O_BG);
+
+            Eigen::Matrix3d dvel_dbg = pre_integration->jacobian.template block<3, 3>(O_P_Vel, O_BG);
 
             if (pre_integration->jacobian.maxCoeff() > 1e8 || pre_integration->jacobian.minCoeff() < -1e8)
             {
@@ -168,6 +171,8 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 jacobian_speedbias_i.block<3, 3>(O_V, O_V - O_V) = -Qi.inverse().toRotationMatrix();
 //                jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
                 jacobian_speedbias_i.block<3, 3>(O_V, O_BG - O_V) = -dv_dbg;
+
+                jacobian_speedbias_i.block<3, 3>(O_P_Vel, O_BG - O_V) = -dvel_dbg;  //vel
 
 //                jacobian_speedbias_i.block<3, 3>(O_BA, O_BA - O_V) = -Eigen::Matrix3d::Identity();
 
