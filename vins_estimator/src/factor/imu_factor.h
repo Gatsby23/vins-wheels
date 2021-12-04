@@ -138,7 +138,8 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 jacobian_pose_i.block<3, 3>(O_V, O_R) = Utility::skewSymmetric(Qi.inverse() * (G * sum_dt + Vj - Vi));
 
                 jacobian_pose_i.block<3,3>(O_P_Vel,O_P) = -Qi.inverse().toRotationMatrix();// 轮速计
-//                jacobian_pose_i.block<3, 3>(O_P_Vel, O_R) = Utility::skewSymmetric(Qi.inverse() * ( Pj - Pi )) + Utility::skewSymmetric(Qi.inverse() * Qj * TIV[0]);
+                //jacobian_pose_i.block<3, 3>(O_P_Vel, O_R) = Utility::skewSymmetric(Qi.inverse() * ( Pj - Pi )) + Utility::skewSymmetric(Qi.inverse() * Qj * TIV[0]);
+                jacobian_pose_i.block<3, 3>(O_P_Vel, O_R) = Utility::skewSymmetric(Qi.inverse() * (Pj + Qj * TIV[0] - Pi));//vins-gps-wheels
 
 //                std::cout<<"jacobian_pose_i\n"<<jacobian_pose_i<<std::endl;
 //                std::cout<<"jacobian_pose_i after sqrt info long\n"<<sqrt_info_wheel_test*jacobian_pose_i<<std::endl;
@@ -157,7 +158,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[1]);
                 jacobian_speedbias_i.setZero();
                 jacobian_speedbias_i.block<3, 3>(O_P, O_V - O_V) = -Qi.inverse().toRotationMatrix() * sum_dt;
-//                jacobian_speedbias_i.block<3, 3>(O_P, O_BA - O_V) = -dp_dba;
+                jacobian_speedbias_i.block<3, 3>(O_P, O_BA - O_V) = -dp_dba;
                 jacobian_speedbias_i.block<3, 3>(O_P, O_BG - O_V) = -dp_dbg;
 
 #if 0
@@ -169,12 +170,12 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 #endif
 
                 jacobian_speedbias_i.block<3, 3>(O_V, O_V - O_V) = -Qi.inverse().toRotationMatrix();
-//                jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
+                jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
                 jacobian_speedbias_i.block<3, 3>(O_V, O_BG - O_V) = -dv_dbg;
 
                 jacobian_speedbias_i.block<3, 3>(O_P_Vel, O_BG - O_V) = -dvel_dbg;  //vel
 
-//                jacobian_speedbias_i.block<3, 3>(O_BA, O_BA - O_V) = -Eigen::Matrix3d::Identity();
+                jacobian_speedbias_i.block<3, 3>(O_BA, O_BA - O_V) = -Eigen::Matrix3d::Identity();
 
                 jacobian_speedbias_i.block<3, 3>(O_BG, O_BG - O_V) = -Eigen::Matrix3d::Identity();
 
@@ -202,7 +203,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 #endif
                 jacobian_pose_j.block<3, 3>(O_P_Vel, O_P) = Qi.inverse().toRotationMatrix();//轮速计
 //                jacobian_pose_j.block<3, 3>(O_P_Vel, O_R) = -Qi.inverse().toRotationMatrix() * Utility::skewSymmetric(Qj * TIV[0]);//轮速计
-
+                jacobian_pose_j.block<3, 3>(O_P_Vel, O_R) = -Qi.inverse().toRotationMatrix() * Qj * Utility::skewSymmetric(TIV[0]);//vins-gps-wheels
 //                std::cout<<"jacobian_pose_j\n"<<jacobian_pose_j<<std::endl;
 //                std::cout<<"jacobian_pose_j after sqrt info long\n"<<sqrt_info_wheel_test*jacobian_pose_j<<std::endl;
                 jacobian_pose_j = sqrt_info_wheel * jacobian_pose_j;
@@ -218,7 +219,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 
                 jacobian_speedbias_j.block<3, 3>(O_V, O_V - O_V) = Qi.inverse().toRotationMatrix();
 
-//                jacobian_speedbias_j.block<3, 3>(O_BA, O_BA - O_V) = Eigen::Matrix3d::Identity();
+                jacobian_speedbias_j.block<3, 3>(O_BA, O_BA - O_V) = Eigen::Matrix3d::Identity();
 
                 jacobian_speedbias_j.block<3, 3>(O_BG, O_BG - O_V) = Eigen::Matrix3d::Identity();
 

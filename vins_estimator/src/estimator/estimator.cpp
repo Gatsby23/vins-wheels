@@ -1625,8 +1625,8 @@ void Estimator::optimization()
     {
         // construct new marginlization_factor
         MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);//边缘化
-//        problem.AddResidualBlock(marginalization_factor, NULL,
-//                                 last_marginalization_parameter_blocks);
+        problem.AddResidualBlock(marginalization_factor, NULL,
+                                 last_marginalization_parameter_blocks);
     }
     if(USE_IMU)
     {
