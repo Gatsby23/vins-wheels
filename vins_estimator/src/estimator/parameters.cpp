@@ -32,6 +32,7 @@ double SOLVER_TIME;
 int NUM_ITERATIONS;
 int ESTIMATE_EXTRINSIC;
 int ESTIMATE_TD;
+double MAX_ANGLE_VEL;//角速度阈值
 int ROLLING_SHUTTER;
 std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
@@ -116,6 +117,7 @@ void readParameters(std::string config_file)
     NUM_ITERATIONS = fsSettings["max_num_iterations"];
     MIN_PARALLAX = fsSettings["keyframe_parallax"];
     MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
+    MAX_ANGLE_VEL = fsSettings["max_ang_vel"];
 
     fsSettings["output_path"] >> OUTPUT_FOLDER;
     VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";

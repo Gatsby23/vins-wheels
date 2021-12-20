@@ -103,6 +103,15 @@ int main(int argc, char** argv)
     ofstream path_Save;
     path_Save.open((OUTPUT_FOLDER + "/vio_tum.txt").c_str() );
     path_Save<<fixed;
+
+    ofstream imu_path(OUTPUT_FOLDER+"imu_int_origin.csv");
+//    imu_path.open((OUTPUT_FOLDER+"imu_int_origin.csv").c_str());
+    imu_path<<"imu data"<<endl;
+
+    ofstream imu_path2(OUTPUT_FOLDER+"imu_2.csv");
+//    imu_path.open((OUTPUT_FOLDER+"imu_int_origin.csv").c_str());
+    imu_path2<<"imu data"<<endl;
+//    imu_path.close();
 //    OUTPUT_FOLDER = strPathToSequence;
     outFile = fopen((OUTPUT_FOLDER + "/vio.txt").c_str(),"w");
     if(outFile == NULL)
@@ -121,7 +130,7 @@ int main(int argc, char** argv)
             sensor_msgs::Imu imuMsg;
             while(imu_time<vTimestamps[i]) {
                 if(readImuFile(imu_file_st, imu_time, mag, acc, gyr, odom, imuMsg)) {
-                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<"\tacc="<<acc.transpose()<<"\tnorm="<<acc.norm()<<endl;
+//                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<"\tacc="<<acc.transpose()<<"\tnorm="<<acc.norm()<<endl;
                     pubImu.publish(imuMsg);
                     estimator.inputIMU(imu_time, acc, gyr);
                 }
@@ -130,17 +139,19 @@ int main(int argc, char** argv)
             double vel,ang_vel;
             if(last_wheels_time==0)
                 readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel);//先读一遍
-            while(wheels_time<imu_time){
-                {
+            cout<<"vel_time="<<setprecision(17)<<"  linearVel=   ";
+            while(wheels_time<imu_time)
+            {
 //                    double last_wheels_time=wheels_time;
                     if(readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
                     {
-                        cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
+//                        cout<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
+                        cout<<setprecision(17)<<vel<<"  ";
                         estimator.inputVEL(wheels_time, vel, ang_vel);
                     }
                     else break;
-                }
             }
+            cout<<endl;
             while(gps_time < imu_time)
             {
                 sensor_msgs::NavSatFix gps_msg;
@@ -402,7 +413,7 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
         return false;
     }
     time_=0.5f*(time_now+time_last_);
-    std::cout<<"time_now="<<setprecision(17)<<time_now<<" mid="<<0.5*(time_now+time_last_)<<std::endl;
+//    std::cout<<"time_now="<<setprecision(17)<<time_now<<" mid="<<0.5*(time_now+time_last_)<<std::endl;
     time_last_=time_now;
     wheels=wheels_now;
     vel_ = ( delta_wheels.x() + delta_wheels.y() )/2.0/dt;

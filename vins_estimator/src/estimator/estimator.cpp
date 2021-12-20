@@ -524,7 +524,7 @@ void Estimator::processMeasurements()
 
             mProcess.lock();
             processImage(feature.second, feature.first);//重要   特征点相关，时间戳// 处理图像 和IMU
-            writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_process_img.csv");
+//            writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_process_img.csv");
             prevTime = curTime;
             std::cout<<"latest_V= "<<latest_V.transpose()<<std::endl;
             printStatistics(*this, 0);//打印统计信息
@@ -583,7 +583,7 @@ void Estimator::writr_integrate_data(string path)
     // write result to file
     string imu_data_path=OUTPUT_FOLDER+"imu_2.csv";
     imu_data_path = path;
-    ofstream foutC(imu_data_path, ios::app);
+    ofstream foutC(imu_data_path, ios::app);//ios::app insert data from file end;
     foutC.setf(ios::fixed, ios::floatfield);
     foutC.precision(0);
     foutC << inputImageCnt << ",";
@@ -591,23 +591,22 @@ void Estimator::writr_integrate_data(string path)
     if(pre_integrations[frame_count]!= nullptr)
     {
 //        std::cout<<"write "<<pre_integrations[frame_count]->delta_p_i_vel<<endl;
+        Eigen::Matrix3d delta_R = pre_integrations[frame_count]->delta_q.toRotationMatrix();
+        Eigen::AngleAxis<double> angleaxis;
+        angleaxis.fromRotationMatrix(delta_R);
         foutC << pre_integrations[frame_count]->delta_p_i_vel[0]<<","
               <<pre_integrations[frame_count]->delta_p_i_vel[1] << ","
               << pre_integrations[frame_count]->delta_p_i_vel[2] << ","
-              << pre_integrations[frame_count]->delta_p[0] << ","
-              << pre_integrations[frame_count]->delta_p[1]<< ","
-              << pre_integrations[frame_count]->delta_p[2]<< ","
-              << pre_integrations[frame_count]->delta_v[0]<< ","
-              << pre_integrations[frame_count]->delta_v[1]<< ","
-              << pre_integrations[frame_count]->delta_v[2]<< ","
-              <<Bas->x()<<","
-              <<Bas->y()<<","
-              <<Bas->z()<<","
-              <<Bgs->x()<<","
-              <<Bgs->y()<<","
-              <<Bgs->z()<<","
+              << para_Pose[frame_count][0]<<","
+              << para_Pose[frame_count][1]<<","
+              << para_Pose[frame_count][2]<<","
+              << angleaxis.angle()*180.0f/M_PI<<","
+              << angleaxis.axis().x()<<","
+              << angleaxis.axis().y()<<","
+              << angleaxis.axis().z()<<","
               <<frame_count<<","
               <<marginalization_flag<<","
+              <<pre_integrations[frame_count]->delta_angleaxis.angle()*180.0f/M_PI/pre_integrations[frame_count]->sum_dt<<","
               << endl;
         foutC.close();
     }
@@ -938,7 +937,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//pnp求位姿
         f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化 depth
         optimization();//优化_used
-        writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_opt.csv");
+//        writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_opt.csv");
         set<int> removeIndex;
         outliersRejection(removeIndex);
         f_manager.removeOutlier(removeIndex);
@@ -1589,7 +1588,9 @@ void Estimator::optimization()
     //加入优化变量  位姿 速度
     for (int i = 0; i < frame_count + 1; i++)
     {
-        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();//本地参数化
+        bool show=false;
+        if(i==frame_count-1) show = true;
+        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization(show);//本地参数化
         problem.AddParameterBlock(para_Pose[i], SIZE_POSE, local_parameterization);//参数_位姿
         if(USE_IMU)
         {
@@ -1635,13 +1636,15 @@ void Estimator::optimization()
             int j = i + 1;
             if (pre_integrations[j]->sum_dt > 10.0)
                 continue;
-            std::cout<<"frame_count: "<<i<<"\t sumdt="<<setprecision(10)<<pre_integrations[j]->sum_dt
+            std::cout<<"frame_count: "<<i<<"\t sumdt="<<setprecision(5)<<pre_integrations[j]->sum_dt
             <<"\t pre del_p_vel="<<pre_integrations[j]->delta_p_i_vel.transpose()<<"\tdelta_v="<<pre_integrations[j]->delta_v.transpose()
             <<"\tpos j:"<<para_Pose[j][0]<<"  "<<para_Pose[j][1]<<"  "<<para_Pose[j][2]<<endl;
+            bool show=false;
+            if(i==frame_count-1) show = true;
 
-            IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);
+            IMUFactor* imu_factor = new IMUFactor(pre_integrations[j], show);
 //            IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[j]);
-//            IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[j]);
+//            IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[j],show);
             problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
         }
     }
@@ -1765,9 +1768,9 @@ void Estimator::optimization()
         {
             if (pre_integrations[1]->sum_dt < 10.0)
             {
-                IMUFactor* imu_factor = new IMUFactor(pre_integrations[1]);
+                IMUFactor* imu_factor = new IMUFactor(pre_integrations[1], false);
 //                IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[1]);
-//                IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[1]);
+//                IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[1], false);
                 ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
                                                                                vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
                                                                                vector<int>{0, 1});

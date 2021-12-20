@@ -19,4 +19,8 @@ class PoseLocalParameterization : public ceres::LocalParameterization
     virtual bool ComputeJacobian(const double *x, double *jacobian) const;
     virtual int GlobalSize() const { return 7; };
     virtual int LocalSize() const { return 6; };
+public:
+    bool show= false;
+    PoseLocalParameterization(bool show_):show(show_){    };
+    PoseLocalParameterization(){};
 };

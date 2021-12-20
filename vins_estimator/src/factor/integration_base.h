@@ -26,7 +26,7 @@ class IntegrationBase
           jacobian{Eigen::Matrix<double, 18, 18>::Identity()}, covariance{Eigen::Matrix<double, 18, 18>::Zero()},
           jacobian_origin{Eigen::Matrix<double, 15, 15>::Identity()}, covariance_origin{Eigen::Matrix<double, 15, 15>::Zero()},
           sum_dt{0.0}, delta_p{Eigen::Vector3d::Zero()}, delta_q{Eigen::Quaterniond::Identity()}, delta_v{Eigen::Vector3d::Zero()},
-          delta_p_i_vel{Eigen::Vector3d::Zero()}
+          delta_p_i_vel{Eigen::Vector3d::Zero()},delta_angleaxis{0, Eigen::Vector3d ( 0,0,1 ) }
 
     {
         noise = Eigen::Matrix<double, 21, 21>::Zero();
@@ -54,7 +54,7 @@ class IntegrationBase
               jacobian_origin{Eigen::Matrix<double, 15, 15>::Identity()}, covariance_origin{Eigen::Matrix<double, 15, 15>::Zero()},
               jacobian_enc{Eigen::Matrix<double, 18, 18>::Identity()}, covariance_enc{Eigen::Matrix<double, 18, 18>::Zero()},
               sum_dt{0.0}, delta_p{Eigen::Vector3d::Zero()}, delta_q{Eigen::Quaterniond::Identity()}, delta_v{Eigen::Vector3d::Zero()},
-              delta_p_i_vel{Eigen::Vector3d::Zero()}
+              delta_p_i_vel{Eigen::Vector3d::Zero()},delta_angleaxis{0, Eigen::Vector3d ( 0,0,1 ) }
 
     {
         noise = Eigen::Matrix<double, 21, 21>::Zero();
@@ -114,6 +114,7 @@ class IntegrationBase
         delta_q.setIdentity();
         delta_v.setZero();
         delta_p_i_vel.setZero();
+        delta_angleaxis.fromRotationMatrix(delta_q.toRotationMatrix());
         linearized_ba = _linearized_ba;
         linearized_bg = _linearized_bg;
         jacobian.setIdentity();
@@ -483,6 +484,7 @@ class IntegrationBase
         linearized_ba = result_linearized_ba;
         linearized_bg = result_linearized_bg;
         delta_q.normalize();
+        delta_angleaxis.fromRotationMatrix(delta_q.toRotationMatrix());//轴角
         sum_dt += dt;
         acc_0 = acc_1;
         gyr_0 = gyr_1;
@@ -519,7 +521,7 @@ class IntegrationBase
     }
 
     Eigen::Matrix<double, 18, 1> evaluate_wheel(const Eigen::Vector3d &Pi, const Eigen::Quaterniond &Qi, const Eigen::Vector3d &Vi, const Eigen::Vector3d &Bai, const Eigen::Vector3d &Bgi,
-                                          const Eigen::Vector3d &Pj, const Eigen::Quaterniond &Qj, const Eigen::Vector3d &Vj, const Eigen::Vector3d &Baj, const Eigen::Vector3d &Bgj)
+                                          const Eigen::Vector3d &Pj, const Eigen::Quaterniond &Qj, const Eigen::Vector3d &Vj, const Eigen::Vector3d &Baj, const Eigen::Vector3d &Bgj,bool show)
     {
         Eigen::Matrix<double, 18, 1> residuals;
 
@@ -553,12 +555,15 @@ class IntegrationBase
         Eigen::Vector3d temp_ = -TIV[0] + corrected_delta_q * TIV[0];
         Eigen::Vector3d temp2_ = Qi.inverse() * (Pj - Pi);
         Eigen::Vector3d temp3_ = Qi.inverse() * (Pj - Pi) - TIV[0] + (Qi.inverse()*Qj) * TIV[0];
-        std::cout<<"corrected_delta_p_i_vel: "<<setprecision(10)<<corrected_delta_p_i_vel.transpose();
-        std::cout<<"\t\t-TIV[0] + corrected_delta_q * TIV[0]: "<<setprecision(10)<<temp_.transpose()<<std::endl;
-        std::cout<<"delta_p_i_vel:***********\t"<<setprecision(10)<<delta_p_i_vel.transpose()<<"\tsum_dt: "<<sum_dt<<std::endl;
-        std::cout<<"delta(P)-TIV :***********\t"<<setprecision(10)<<temp2_.transpose();
-        std::cout<<"\t\tdelta(P):   "<<setprecision(10)<<temp3_.transpose()<<"\nVi:"<<Vi.norm()<<"\tVj:"<<Vj.norm()<<std::endl;
-        std::cout<<"Bgi: "<<Bgi.transpose()<<"\tBai:"<<Bai.transpose()<<std::endl;
+        if(show)
+        {
+            std::cout<<"corrected_delta_p_i_vel: "<<setprecision(10)<<corrected_delta_p_i_vel.transpose();
+            std::cout<<"\t\t-TIV[0] + corrected_delta_q * TIV[0]: "<<setprecision(10)<<temp_.transpose()<<std::endl;
+            std::cout<<"delta_p_i_vel:***********\t"<<setprecision(10)<<delta_p_i_vel.transpose()<<"\tsum_dt: "<<sum_dt<<std::endl;
+            std::cout<<"delta(P)-TIV :***********\t"<<setprecision(10)<<temp2_.transpose();
+            std::cout<<"\t\tdelta(P):   "<<setprecision(10)<<temp3_.transpose()<<"\nVi:"<<Vi.norm()<<"\tVj:"<<Vj.norm()<<std::endl;
+            std::cout<<"Bgi: "<<Bgi.transpose()<<"\tBai:"<<Bai.transpose()<<std::endl;
+        }
 
         return residuals;
     }
@@ -654,6 +659,7 @@ class IntegrationBase
     Eigen::Vector3d delta_p_i_vel;
     Eigen::Quaterniond delta_q;
     Eigen::Vector3d delta_v;
+    Eigen::AngleAxis<double> delta_angleaxis;
 
     std::vector<double> dt_buf;
     std::vector<Eigen::Vector3d> acc_buf;

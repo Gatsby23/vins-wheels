@@ -13,7 +13,7 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 {
   public:
     IMUEncoderFactor() = delete;
-    IMUEncoderFactor(IntegrationBase* _pre_integration):pre_integration(_pre_integration)
+    IMUEncoderFactor(IntegrationBase* _pre_integration,bool show_):pre_integration(_pre_integration),show(show_)
     {
     }
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
@@ -64,10 +64,15 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 
         Eigen::Matrix<double, 18, 18> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 18, 18>>(pre_integration->covariance_enc.inverse()).matrixL().transpose();
         //sqrt_info.setIdentity();
-        std::cout<<"residual raw:\t"<<setprecision(6)<<residual.transpose()<<endl;
+//        std::cout<<"residual raw:\t"<<setprecision(6)<<residual.transpose()<<endl;
+        Eigen::Matrix<double, 18, 1>residual_raw=residual;
         residual = sqrt_info * residual;
-        std::cout<<"residual:\t"<<setprecision(6)<<residual.transpose()<<"\tnorm:"<<residual.transpose()*residual/2<<endl;
-        std::cout<<"sqrt_info\n"<<sqrt_info<<std::endl;
+        if(show)
+        {
+            std::cout << "residual raw:\t" << setprecision(6) << residual_raw.transpose() << endl;
+            std::cout<<"res encoder:\t"<<setprecision(6)<<residual.transpose()<<"\tnorm:"<<residual.transpose()*residual/2<<endl;
+//        std::cout<<"sqrt_info\n"<<sqrt_info<<std::endl;
+        }
         if (jacobians)
         {
             double sum_dt = pre_integration->sum_dt;
@@ -376,6 +381,6 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
     //void checkTransition();
     //void checkJacobian(double **parameters);
     IntegrationBase* pre_integration;
-
+    bool show;
 };
 
