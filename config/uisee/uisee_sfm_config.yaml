@@ -1,13 +1,15 @@
 %YAML:1.0
 
 #common parameters
-imu: 0
+imu: 1
 num_of_cam: 1
+wheels: 1
+have_vel_T_cam: 1  #是否有轮速计到相机的外参
 
-imu_topic: ""
+imu_topic: "Imu"
 image0_topic: "/leftImage"
 image1_topic: "/rightImage"
-output_path: "/home/uisee/20200804_car23_imu_can_camera_yahui/biaoding/looped_odom/"
+output_path: "/home/q/output/vins_data_out/"
 
 
 cam0_calib: "image_capturer_1.yaml"
@@ -23,10 +25,10 @@ body_T_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1]
+   data: [ 9.9593468598845236e-01, -7.9571370825795504e-03,8.9726167947437957e-02, 1.1458418131043753e-01,
+           -9.0035110339107216e-02, -5.7090331544469741e-02,9.9430094687190540e-01, -2.4316535165940545e-01,
+           -2.7892922592644004e-03, -9.9833730673234478e-01,-5.7574663134931647e-02, 5.9419269671671859e-01,
+           0., 0., 0., 1. ]
 
 body_T_cam1: !!opencv-matrix
    rows: 4
@@ -36,6 +38,23 @@ body_T_cam1: !!opencv-matrix
           0, 1, 0, 0,
           0, 0, 1, 0,
           0, 0, 0, 1]
+
+body_T_vel: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 1.0 , 0.0 , 0.0 ,0.07,
+           0.0 , 1.0 , 0.0, 0.0,
+           0.0 , 0.0 , 1.0 ,-1.7,
+           0,0,0,1 ]
+vel_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [  0.99946, 0.00340907 ,-0.0326924 , 0.0933846,
+            0.0328094 ,-0.0432215 ,  0.998527 ,   1.10744,
+            0.00199103  , -0.99906  , -0.04331 ,   1.4,
+            0   ,       0 ,         0   ,       1 ]
 
 #Multiple thread support
 multiple_thread: 0
@@ -52,6 +71,7 @@ flow_back: 1            # perform forward and backward optical flow to improve f
 max_solver_time: 0.08  # max solver itration time (s), to guarantee real time
 max_num_iterations: 10   # max solver itrations, to guarantee real time
 keyframe_parallax: 3 # keyframe selection threshold (pixel)
+max_ang_vel: 10.0 #角速度阈值
 
 #imu parameters       The more accurate parameters you provide, the better performance
 acc_n: 0.1          # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -59,6 +79,8 @@ gyr_n: 0.01         # gyroscope measurement noise standard deviation.     #0.05 
 acc_w: 0.001         # accelerometer bias random work noise standard deviation.  #0.02
 gyr_w: 1.0e-4       # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007     # gravity magnitude
+enc_n: 0.2       # encoder readings noise standard deviation.
+
 
 #unsynchronization parameters
 estimate_td: 0                      # online estimate time offset between camera and imu
@@ -66,5 +88,5 @@ td: 0.0                             # initial value of time offset. unit: s. rea
 
 #loop closure parameters 自己加的
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
-pose_graph_save_path: "/home/uisee/20200804_car23_imu_can_camera_yahui/biaoding/looped_odom/" # save and load path
+pose_graph_save_path: "/home/q/output/vins_data_out/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0

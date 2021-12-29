@@ -7,6 +7,9 @@
  * you may not use this file except in compliance with the License.
  *
  * Author: Qin Tong (qintonguav@gmail.com)
+ * 在执行标定时，需要把imu的代价函数等切换成我自己写的代码
+ * 使用：IMUFactor* imu_factor = new IMUFactor(pre_integrations[j], show);
+ *      midPointIntegration_wheel()
  *******************************************************/
 
 #include <iostream>
@@ -28,12 +31,12 @@ void LoadImages(const string &strPathToSequence,
                 vector<string> &vstrImageFilenames0,
                 vector<string> &vstrImageFilenames1,
                 vector<double> &vTimestamps);
-bool readImuFile(ifstream &imufile,double &time,
+int readImuFile(ifstream &imufile,double &time,
                  Eigen::Vector3d &mag,Eigen::Vector3d &acc,Eigen::Vector3d &gyr,
-                 std::vector<std::vector<double>> &odom_ ,sensor_msgs::Imu &imuMsg);
+                 std::vector<std::vector<double>> &odom_ ,sensor_msgs::Imu &imuMsg);//返回1 正常  返回2 数据无效 返回3 数据完成
 bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vector2d &wheels,
                 double &vel_,double &ang_vel_);//文件流 时间 轮编码计数 轮速 角速度
-bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg);
+int readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg);
 
 Estimator estimator;
 
@@ -46,7 +49,7 @@ int main(int argc, char** argv)
     ros::NodeHandle n("~");
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
 
-    if(argc <= 2)
+    if(argc < 3)
     {
         printf("please intput: rosrun vins kitti_odom_test [config file] [data folder] \n"
                "for example: rosrun vins kitti_odom_test "
@@ -73,10 +76,10 @@ int main(int argc, char** argv)
     if(argc==3)
     {
         string basePath = argv[2];
-        strPathToSequence=basePath+ "/image/";//图像地址
-        strPathImu=basePath+ "/sensor_data/xsens_imu.csv";//imu 文件地址
-        strPathWheels=basePath+ "/sensor_data/encoder.csv";  //轮速计地址
-        strPathGps=basePath+ "/sensor_data/gps.csv";  //GPS地址
+        strPathToSequence=basePath;//图像地址
+        strPathImu=basePath+ "/imu.txt";//imu 文件地址
+        strPathWheels=basePath+ "/can.txt";  //轮速计地址
+        strPathGps=basePath+ "/gps.txt";  //GPS地址
     }
     else
     {
@@ -116,10 +119,6 @@ int main(int argc, char** argv)
     path_Save.open((OUTPUT_FOLDER + "/vio_tum.txt").c_str() );
     path_Save<<fixed;
 
-    ofstream stateSave;
-    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
-    stateSave<<fixed;
-
     ofstream imu_path(OUTPUT_FOLDER+"imu_int_origin.csv");
 //    imu_path.open((OUTPUT_FOLDER+"imu_int_origin.csv").c_str());
     imu_path<<"imu data"<<endl;
@@ -127,6 +126,10 @@ int main(int argc, char** argv)
     ofstream imu_path2(OUTPUT_FOLDER+"imu_2.csv");
 //    imu_path.open((OUTPUT_FOLDER+"imu_int_origin.csv").c_str());
     imu_path2<<"imu data"<<endl;
+
+    ofstream exe_path2(OUTPUT_FOLDER+"exe.csv");
+//    imu_path.open((OUTPUT_FOLDER+"imu_int_origin.csv").c_str());
+    exe_path2<<"exe data"<<endl;
 //    imu_path.close();
 //    OUTPUT_FOLDER = strPathToSequence;
     outFile = fopen((OUTPUT_FOLDER + "/vio.txt").c_str(),"w");
@@ -145,36 +148,43 @@ int main(int argc, char** argv)
             std::vector<std::vector<double>>odom;
             sensor_msgs::Imu imuMsg;
             while(imu_time<vTimestamps[i]) {
-                if(readImuFile(imu_file_st, imu_time, mag, acc, gyr, odom, imuMsg)) {
+                int flag = readImuFile(imu_file_st, imu_time, mag, acc, gyr, odom, imuMsg);
+                if(flag==1) {
 //                    cout<<"imu_time="<<setprecision(17)<<imu_time<<"\tgyr="<<gyr.transpose()<<"\tacc="<<acc.transpose()<<"\tnorm="<<acc.norm()<<endl;
                     pubImu.publish(imuMsg);
                     estimator.inputIMU(imu_time, acc, gyr);
                 }
+                else if(flag==2);
                 else break;
             }
             double vel,ang_vel;
             if(last_wheels_time==0)
                 readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel);//先读一遍
-            cout<<"vel_time="<<setprecision(17)<<"  linearVel=   ";
+//            cout<<"vel_time="<<setprecision(17)<<"  linearVel=   ";
             while(wheels_time<imu_time)
             {
 //                    double last_wheels_time=wheels_time;
                     if(readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
                     {
-//                        cout<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
-                        cout<<setprecision(17)<<vel<<"  ";
-                        Eigen::Vector3d velVec(vel,0,0);
+//                        cout<<"vel_time="<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
+//                        cout<<setprecision(17)<<vel<<"  ";
+                        Eigen::Vector3d velVec(0,vel,0);
                         estimator.inputVEL(wheels_time, velVec, ang_vel);
                     }
                     else break;
             }
-            cout<<endl;
+//            cout<<endl;
             while(gps_time < imu_time)
             {
                 sensor_msgs::NavSatFix gps_msg;
-                if(readGps(gps_file_st,gps_time,gps_msg))
+                int flag = readGps(gps_file_st,gps_time,gps_msg);
+                if(flag==1)
                 {
                     gps_publisher.publish(gps_msg);
+                }
+                else if(flag==2)
+                {
+                    ;
                 }
                 else break;
             }
@@ -192,19 +202,19 @@ int main(int argc, char** argv)
                 std::cout<<"!!!! file empty in place:"<<leftImagePath<<endl;
                 continue;
             }
-            cvtColor(imLeft,imLeft,CV_BayerBG2GRAY,0);
+//            cvtColor(imLeft,imLeft,CV_BayerBG2GRAY,0);
 
             sensor_msgs::ImagePtr imLeftMsg = cv_bridge::CvImage(std_msgs::Header(), "mono8", imLeft).toImageMsg();
             imLeftMsg->header.stamp = ros::Time(vTimestamps[i]);
             pubLeftImage.publish(imLeftMsg);
 
-            cvtColor(imRight,imRight,CV_BayerBG2GRAY,0);
+//            cvtColor(imRight,imRight,CV_BayerBG2GRAY,0);
 //            continue;
             sensor_msgs::ImagePtr imRightMsg = cv_bridge::CvImage(std_msgs::Header(), "mono8", imRight).toImageMsg();
             imRightMsg->header.stamp = ros::Time(vTimestamps[i]);
             pubRightImage.publish(imRightMsg);
 
-
+//            continue;
             estimator.inputImage(vTimestamps[i], imLeft);//时间戳 左目 右目
 
             Eigen::Vector3d vel_est;
@@ -217,22 +227,6 @@ int main(int argc, char** argv)
                 path_Save<<setprecision(6)<<vTimestamps[i]<<" "<<
                      setprecision(7)<<pose(0,3)<<" "<<pose(1,3)<<" "<<pose(2,3)<<" "<<
                      q_.x()<<" "<<q_.y()<<" "<<q_.z()<<" "<<q_.w()<<endl;
-            stateSave.precision(6);
-            stateSave << vTimestamps[i]<< ",";
-            stateSave.precision(5);
-            stateSave <<"Ps: "<<estimator.Ps[WINDOW_SIZE].x() << ","<< estimator.Ps[WINDOW_SIZE].y() << ","<< estimator.Ps[WINDOW_SIZE].z() << "\t"
-                  <<"Vs: "<< estimator.Vs[WINDOW_SIZE].x() << ","<< estimator.Vs[WINDOW_SIZE].y() << ","<< estimator.Vs[WINDOW_SIZE].z() <<","<<estimator.Vs[WINDOW_SIZE].norm()<<"\t"
-                  <<"vVel: "<<vel;
-            if(estimator.solver_flag==Estimator::SolverFlag::NON_LINEAR && estimator.pre_integrations[estimator.frame_count-1]->sum_dt>0)
-            {
-                stateSave<<"\tangVel: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_angleaxis.angle()*180.0f/M_PI/estimator.pre_integrations[estimator.frame_count-1]->sum_dt
-                        <<"\tpara_SpeedBias:v: "<<estimator.para_SpeedBias[estimator.frame_count-1][0]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][1]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][2]
-                        <<"\tba: "<<estimator.para_SpeedBias[estimator.frame_count-1][3]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][4]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][5]
-                        <<"\tbg: "<<estimator.para_SpeedBias[estimator.frame_count-1][6]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][7]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][8]<<endl;
-            }
-            else
-                stateSave<<endl;
-
             if(outFile != NULL)
                 fprintf (outFile, "%f %f %f %f %f %f %f %f \n",
                          vTimestamps[i],
@@ -251,8 +245,6 @@ int main(int argc, char** argv)
     }
     if(outFile != NULL)
         fclose (outFile);
-    path_Save.close();
-    stateSave.close();
     return 0;
 }
 
@@ -262,8 +254,8 @@ void LoadImages(const string &strPathToSequence,
                 vector<double> &vTimestamps)
 {
     ifstream fTimes0,fTimes1;
-    string strPathTimeFile0 = strPathToSequence + "/stereo_left/image_name.txt";
-    string strPathTimeFile1 = strPathToSequence + "/stereo_right/image_name.txt";
+    string strPathTimeFile0 = strPathToSequence + "/image_capturer_0/image_name.txt";//前视相机
+    string strPathTimeFile1 = strPathToSequence + "/image_capturer_1/image_name.txt";//后相机
 
     fTimes0.open(strPathTimeFile0.c_str());
     fTimes1.open(strPathTimeFile1.c_str());
@@ -279,14 +271,14 @@ void LoadImages(const string &strPathToSequence,
         if(!s0.empty() && !s1.empty())
         {
             stringstream ss;
-            string timeStr=s0.substr(0,19);
+            string timeStr=s0.substr(0,16);
             ss << timeStr;
             double t;
             ss >> t;
-            vTimestamps.push_back(t/1e9);
+            vTimestamps.push_back(t);
             imageNameList0.push_back(s0);
-//            imageNameList1.push_back(s1);// 会导致左右目帧号不匹配
-            imageNameList1.push_back(s0);
+            imageNameList1.push_back(s1);// 会导致左右目帧号不匹配
+//            imageNameList1.push_back(s0);
         }
 //        std::cout<<s0<<std::endl;
     }
@@ -305,8 +297,8 @@ void LoadImages(const string &strPathToSequence,
 //        stringstream ss;
 //        ss << setfill('0') << setw(6) << i;
 //        vstrImageFilenames[i] = strPrefixLeft + ss.str() + ".png";
-        vstrImageFilenames0[i]=strPrefixLeft+"/stereo_left/"+imageNameList0[i];
-        vstrImageFilenames1[i]=strPrefixLeft+"/stereo_right/"+imageNameList1[i];  //vstrImageFilenames0是slam帧
+        vstrImageFilenames0[i]=strPrefixLeft+"/image_capturer_0/"+imageNameList0[i];
+        vstrImageFilenames1[i]=strPrefixLeft+"/image_capturer_1/"+imageNameList1[i];  //vstrImageFilenames0是slam帧
 //        cv::Mat left=cv::imread(vstrImageFilenames0[i],CV_LOAD_IMAGE_ANYDEPTH);
 //        cv::Mat left_rbg;
 //        cvtColor(left,left_rbg,CV_BayerBG2RGB,0);
@@ -318,49 +310,50 @@ void LoadImages(const string &strPathToSequence,
 
 }
 //读取imu数据
-bool readImuFile(ifstream &imufile,double &time,Eigen::Vector3d &mag,Eigen::Vector3d &acc,Eigen::Vector3d &gyr,
+int readImuFile(ifstream &imufile,double &time,Eigen::Vector3d &mag,Eigen::Vector3d &acc,Eigen::Vector3d &gyr,
                  std::vector<std::vector<double>> &odom_ ,sensor_msgs::Imu &imuMsg)
 {
     string lineStr_imu;
     std::getline(imufile, lineStr_imu);
     if (imufile.eof()) {
         std::cout << "END OF IMU FILE " << std::endl;
-        return 0;
+        return 3;
     }
 //    cout <<"  getline="<<lineStr_imu << endl;
     stringstream ss(lineStr_imu);
 // 按照逗号分隔
     vector<string> lineArray;
     string str;
-    while (getline(ss, str, ','))
+    while (ss>>str)
         lineArray.push_back(str);
-    double time_now = stod(lineArray[0]) / 1e9;
+    double time_now = stod(lineArray[1]);
 //    if(time_now<=time_begin)return 0;//小于开始的时间戳就不要了
-    if (time_now == time)return 0;
+    if (time_now == time)return 2;
     time = time_now;
-    Eigen::Quaterniond q_;
-    q_.x() = stod(lineArray[1]);
-    q_.y() = stod(lineArray[2]);
-    q_.z() = stod(lineArray[3]);
-    q_.w() = stod(lineArray[4]);
-    Eigen::Vector3d euler_;
-    euler_.x() = stod(lineArray[5]);
-    euler_.y() = stod(lineArray[6]);
-    euler_.z() = stod(lineArray[7]);
+//    Eigen::Quaterniond q_;
+//    q_.x() = stod(lineArray[1]);
+//    q_.y() = stod(lineArray[2]);
+//    q_.z() = stod(lineArray[3]);
+//    q_.w() = stod(lineArray[4]);
+//    Eigen::Vector3d euler_;
+//    euler_.x() = stod(lineArray[5]);
+//    euler_.y() = stod(lineArray[6]);
+//    euler_.z() = stod(lineArray[7]);
 
-    gyr.x() = stod(lineArray[8]);
+    mag.x() = stod(lineArray[3]);
+    mag.y() = stod(lineArray[4]);
+    mag.z() = stod(lineArray[5]);
+
+    gyr.x() = stod(lineArray[7]);
 //    gyr.x()=gyr.x()*3.1415926/180;
-    gyr.y() = stod(lineArray[9]);
+    gyr.y() = stod(lineArray[8]);
 //    gyr.y()=gyr.y()*3.1415926/180;
-    gyr.z() = stod(lineArray[10]);
+    gyr.z() = stod(lineArray[9]);
 //    gyr.z()=gyr.z()*3.1415926/180;
     acc.x() = stod(lineArray[11]);
     acc.y() = stod(lineArray[12]);
     acc.z() = stod(lineArray[13]);
 
-    mag.x() = stod(lineArray[14]);
-    mag.y() = stod(lineArray[15]);
-    mag.z() = stod(lineArray[16]);
 
 //把imu数据压入队列
 //    Eigen::Quaterniond q_imu(1,0,0,0);
@@ -395,10 +388,10 @@ bool readImuFile(ifstream &imufile,double &time,Eigen::Vector3d &mag,Eigen::Vect
     imuMsg.angular_velocity.x = gyr.x();
     imuMsg.angular_velocity.y = gyr.y();
     imuMsg.angular_velocity.z = gyr.z();
-    imuMsg.orientation.x = q_.x();
-    imuMsg.orientation.y = q_.y();
-    imuMsg.orientation.z = q_.z();
-    imuMsg.orientation.w = q_.w();
+//    imuMsg.orientation.x = q_.x();
+//    imuMsg.orientation.y = q_.y();
+//    imuMsg.orientation.z = q_.z();
+//    imuMsg.orientation.w = q_.w();
 
 //    strArray.push_back(lineArray);
 //    int64 num_str=stol(strArray[i][0]);//string 转数字
@@ -429,17 +422,18 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
     // 按照逗号分隔
     vector<string> lineArray;
     string str;
-    while (getline(ssLine, str, ','))
+    while (ssLine>>str)
         lineArray.push_back(str);
 
-    double time_now = stod(lineArray[0])/1e9;
+    double time_now = stod(lineArray[0]);
     time_now=time_now-0.0;//时间差矫正
 //    double dt = time_now-time_;
     double dt = time_now-time_last_;
     //轮速
     Eigen::Vector2d wheels_now;
-    wheels_now.x() = stod(lineArray[1])*0.623022*M_PI/4096.0;//左轮速
-    wheels_now.y() = stod(lineArray[2])*0.622356*M_PI/4096.0;//右轮速
+    wheels_now.x() = stod(lineArray[1]);//轮速
+    wheels_now.y() = stod(lineArray[2])*3.1415926535/180*coeff_steer_k0+coeff_steer_k1;//方向盘角度
+    wheels_now.x() = wheels_now.x()* cos(wheels_now.y());//速度 cos
 
     Eigen::Vector2d delta_wheels;
     delta_wheels=wheels_now-wheels;
@@ -452,7 +446,7 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
 //    std::cout<<"time_now="<<setprecision(17)<<time_now<<" mid="<<0.5*(time_now+time_last_)<<std::endl;
     time_last_=time_now;
     wheels=wheels_now;
-    vel_ = ( delta_wheels.x() + delta_wheels.y() )/2.0/dt;
+    vel_ = wheels_now.x();
 //    imu_odom.add_odom_linear(time_,vel_,steer_);
 
     //双轮差速模型
@@ -469,28 +463,37 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
     return true;
 }
 
-bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
+int readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
 {
     string FileGetline;
     if(!File.eof())
         std::getline(File,FileGetline);
     else{
-        std::cout<<"END OF WHEELS FILE "<<std::endl;
-        return false;
+        std::cout<<"END OF GPS FILE "<<std::endl;
+        return 3;
     }
     if(File.eof()){
-        std::cout<<"END OF WHEELS FILE  publish odometer"<<std::endl;
-        return false;
+        std::cout<<"END OF GPS FILE  publish odometer"<<std::endl;
+        return 3;
     }
 
     stringstream gps_ss(FileGetline);
     vector<string>line_data_vec;
     string value_str;
-    while (getline(gps_ss, value_str, ','))
+    while (gps_ss>>value_str)
     {
         line_data_vec.push_back(value_str);
     }
-    time_ = std::stod(line_data_vec[0])/1e9;
+    double calibrate1=0,calibrate2=0,calibrate3=0;
+    calibrate1=std::stod(line_data_vec[7]);
+    calibrate2=std::stod(line_data_vec[8]);
+    calibrate3=std::stod(line_data_vec[9]);
+    time_ = std::stod(line_data_vec[0]);
+    if(calibrate1!=4 || calibrate2!=1 || calibrate3!=1)
+        for (int i = 0; i < 9; i++)
+            gps_msg.position_covariance[i] = 0;
+    else
+        return 2;
     ros::Time stamp(time_);
     gps_msg.header.stamp = stamp;
     gps_msg.header.frame_id = "gps_frame";
@@ -499,10 +502,7 @@ bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
     gps_msg.latitude = std::stod(line_data_vec[1]);
     gps_msg.longitude = std::stod(line_data_vec[2]);
     gps_msg.altitude = std::stod(line_data_vec[3]);
-    for (int i = 0; i < 9; i++)
-    {
-        gps_msg.position_covariance[i] = std::stod(line_data_vec[i + 4]) / 50;
-    }
-    return true;
+
+    return 1;
 //    gps_publisher.publish(gps_msg);
 }

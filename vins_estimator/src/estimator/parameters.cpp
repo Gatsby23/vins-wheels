@@ -45,6 +45,7 @@ int STEREO;
 int USE_IMU;
 int USE_WHEELS;
 int MULTIPLE_THREAD;
+int have_vel_T_cam;
 map<int, Eigen::Vector3d> pts_gt;
 std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
 std::string FISHEYE_MASK;
@@ -126,6 +127,7 @@ void readParameters(std::string config_file)
     fout.close();
 
     ESTIMATE_EXTRINSIC = fsSettings["estimate_extrinsic"];
+    have_vel_T_cam = fsSettings["have_vel_T_cam"];
     if (ESTIMATE_EXTRINSIC == 2)
     {
         ROS_WARN("have no prior about extrinsic param, calibrate extrinsic param");
@@ -150,10 +152,21 @@ void readParameters(std::string config_file)
         RIC.push_back(T.block<3, 3>(0, 0));
         TIC.push_back(T.block<3, 1>(0, 3));
 
-        cv::Mat cv_T_vel;
-        fsSettings["body_T_vel"] >> cv_T_vel;
+        cv::Mat cv_T_vel,cv_T_vel_cam0;
         Eigen::Matrix4d T_vel;
-        cv::cv2eigen(cv_T_vel, T_vel);
+        if(have_vel_T_cam==1)
+        {
+            fsSettings["vel_T_cam0"] >> cv_T_vel_cam0;
+            Eigen::Matrix4d T_vel_cam0;
+            cv::cv2eigen(cv_T_vel_cam0, T_vel_cam0);
+            T_vel=T*(T_vel_cam0.inverse());
+        }
+        else
+        {
+            fsSettings["body_T_vel"] >> cv_T_vel;
+            cv::cv2eigen(cv_T_vel, T_vel);
+        }
+        std::cout<<"T_vel\n"<<T_vel<<std::endl;
         RIV.push_back(T_vel.block<3, 3>(0, 0));
         TIV.push_back(T_vel.block<3, 1>(0, 3));
     } 

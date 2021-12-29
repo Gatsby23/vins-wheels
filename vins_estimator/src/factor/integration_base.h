@@ -282,7 +282,7 @@ class IntegrationBase
 
             MatrixXd F_origin = F.matrix().block<15,15>(0,0);
             //cout<<"A"<<endl<<A<<endl;
-
+#if 1
             MatrixXd V = MatrixXd::Zero(18,21);
             V.block<3, 3>(0, 0) =  0.25 * delta_q.toRotationMatrix() * _dt * _dt;
             V.block<3, 3>(0, 3) =  0.25 * -result_delta_q.toRotationMatrix() * R_a_1_x  * _dt * _dt * 0.5 * _dt;
@@ -298,7 +298,7 @@ class IntegrationBase
             V.block<3, 3>(12, 15) = MatrixXd::Identity(3,3) * _dt;
 
             //轮式计
-            V.block<3, 3>(15, 3) = 0.5 * -result_delta_q.toRotationMatrix() * R_vel_1_x * _dt * 0.5 * _dt;
+            V.block<3, 3>(15, 3) = 0.25 * -result_delta_q.toRotationMatrix() * R_vel_1_x * _dt  * _dt;
             V.block<3, 3>(15, 9) = V.block<3, 3>(15, 3);
             V.block<3, 3>(15, 18) = 0.5 * (delta_q.toRotationMatrix()*RIV[0]+result_delta_q.toRotationMatrix()*RIV[0]) * _dt;
 
@@ -310,6 +310,38 @@ class IntegrationBase
 
             covariance = F * covariance * F.transpose() + V * noise * V.transpose();
             covariance_origin = F_origin * covariance_origin * F_origin.transpose() + V_origin * noise_origin * V_origin.transpose();
+#else
+            MatrixXd V = MatrixXd::Zero(18,24);
+            V.block<3, 3>(0, 0) =  0.25 * delta_q.toRotationMatrix() * _dt * _dt;
+            V.block<3, 3>(0, 3) =  0.25 * -result_delta_q.toRotationMatrix() * R_a_1_x  * _dt * _dt * 0.5 * _dt;
+            V.block<3, 3>(0, 6) =  0.25 * result_delta_q.toRotationMatrix() * _dt * _dt;
+            V.block<3, 3>(0, 9) =  V.block<3, 3>(0, 3);
+            V.block<3, 3>(3, 3) =  0.5 * MatrixXd::Identity(3,3) * _dt;
+            V.block<3, 3>(3, 9) =  0.5 * MatrixXd::Identity(3,3) * _dt;
+            V.block<3, 3>(6, 0) =  0.5 * delta_q.toRotationMatrix() * _dt;
+            V.block<3, 3>(6, 3) =  0.5 * -result_delta_q.toRotationMatrix() * R_a_1_x  * _dt * 0.5 * _dt;
+            V.block<3, 3>(6, 6) =  0.5 * result_delta_q.toRotationMatrix() * _dt;
+            V.block<3, 3>(6, 9) =  V.block<3, 3>(6, 3);
+            V.block<3, 3>(9, 12) = MatrixXd::Identity(3,3) * _dt;
+            V.block<3, 3>(12, 15) = MatrixXd::Identity(3,3) * _dt;
+
+            //轮式计
+            V.block<3, 3>(15, 3) = 0.25 * -result_delta_q.toRotationMatrix() * R_vel_1_x * _dt  * _dt;
+            V.block<3, 3>(15, 9) = V.block<3, 3>(15, 3);
+            V.block<3, 3>(15, 18) = 0.5 * (delta_q.toRotationMatrix()*RIV[0]) * _dt;
+            V.block<3, 3>(15, 21) = 0.5 * (result_delta_q.toRotationMatrix()*RIV[0]) * _dt;
+
+
+            MatrixXd V_origin = V.matrix().block<15,18>(0,0);
+            //step_jacobian = F;
+            //step_V = V;
+            jacobian = F * jacobian;
+            jacobian_origin = F_origin * jacobian_origin;
+
+            covariance = F * covariance * F.transpose() + V * noise_enc * V.transpose();
+            covariance_origin = F_origin * covariance_origin * F_origin.transpose() + V_origin * noise_origin * V_origin.transpose();
+#endif
+
 
         }
 
@@ -381,11 +413,11 @@ class IntegrationBase
             F.block<3, 3>(6, 6) = Matrix3d::Identity();
             F.block<3, 3>(6, 12) = -0.5 * (delta_q.toRotationMatrix() + result_delta_q.toRotationMatrix()) * _dt;
             F.block<3, 3>(6, 15) = -0.5 * result_delta_q.toRotationMatrix() * R_a_1_x * _dt * -_dt;
-
+            //vel
             F.block<3, 3>(9, 3) = -0.5 * delta_q.toRotationMatrix() * R_e_0_x * _dt +
-                                  -0.5 * result_delta_q.toRotationMatrix() * R_e_1_x * (Matrix3d::Identity() - R_w_x * _dt) * _dt;
-            F.block<3, 3>(9, 9) = Matrix3d::Identity();
-            F.block<3, 3>(9, 15) = 0.5 * result_delta_q.toRotationMatrix() * R_e_1_x * _dt * _dt;
+                                  -0.5 * result_delta_q.toRotationMatrix() * R_e_1_x * (Matrix3d::Identity() - R_w_x * _dt) * _dt; //对角度
+            F.block<3, 3>(9, 9) = Matrix3d::Identity();//对轮速计偏差
+            F.block<3, 3>(9, 15) = 0.5 * result_delta_q.toRotationMatrix() * R_e_1_x * _dt * _dt;//对角度bias
 
 
             F.block<3, 3>(12, 12) = Matrix3d::Identity();

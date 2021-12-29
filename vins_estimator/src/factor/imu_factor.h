@@ -86,7 +86,8 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
             sqrt_info.setZero();
             sqrt_info.matrix().block<15, 15>(0, 0) = sqrt_info_wheel.matrix().block<15, 15>(0, 0);
             sqrt_info_wheel=sqrt_info;
-            std::cout<<"---------------R is large than-----------------"<<MAX_ANGLE_VEL<<std::endl;
+            if(show)
+                std::cout<<"---------------R is large than-----------------"<<MAX_ANGLE_VEL<<std::endl;
         }
         residual = sqrt_info_wheel * residual;
         if(show)
@@ -105,7 +106,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 //        sqrt_info_wheel=sqrt_info;
 //        std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
 //        sqrt_info_wheel.matrix().block<15,3>(0,15)=Eigen::Matrix<double,15,3>::Zero();
-//        std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
+            std::cout<<"sqrt_info_wheel  :\n"<<setprecision(6)<<sqrt_info_wheel<<endl;
             std::cout << "residual raw:\t" << setprecision(6) << residual_raw.transpose() << endl;
 //        residual(17)=0;
             std::cout << "residual:\t" << setprecision(6) << residual.transpose() << "\tnorm:"
@@ -184,7 +185,7 @@ class IMUFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
                 jacobian_speedbias_i.block<3, 3>(O_V, O_BG - O_V) = -dv_dbg;
 
-//                    jacobian_speedbias_i.block<3, 3>(O_P_Vel, O_BG - O_V) = -dvel_dbg;  //vel
+                    jacobian_speedbias_i.block<3, 3>(O_P_Vel, O_BG - O_V) = -dvel_dbg;  //vel
 
                 jacobian_speedbias_i.block<3, 3>(O_BA, O_BA - O_V) = -Eigen::Matrix3d::Identity();
 

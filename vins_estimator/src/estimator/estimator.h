@@ -50,11 +50,11 @@ class Estimator
     void initFirstPose(Eigen::Vector3d p, Eigen::Matrix3d r);
     void inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity);
     void inputWheelsIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity);
-    void inputVEL(double t, const double &vel, const double &ang_vel);//输入里程计
+    void inputVEL(double t, const Eigen::Vector3d &velVec, const double &ang_vel);//输入里程计
     void inputFeature(double t, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &featureFrame);
     void inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
     void processIMU(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity);
-    void processIMU_with_wheel(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity,const double vel);
+    void processIMU_with_wheel(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity,const Eigen::Vector3d vel);
     void processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header);
     void processMeasurements();
     void changeSensorType(int use_imu, int use_stereo);
@@ -74,9 +74,9 @@ class Estimator
     bool failureDetection();
     bool getIMUInterval(double t0, double t1, vector<pair<double, Eigen::Vector3d>> &accVector, 
                                               vector<pair<double, Eigen::Vector3d>> &gyrVector);
-    bool getWHEELSInterval(double t0, double t1, vector<pair<double, double>> &velVector,
+    bool getWHEELSInterval(double t0, double t1, vector<pair<double, Eigen::Vector3d>> &velVector,
                                                  vector<pair<double, double>> &ang_velVector);
-    bool getWHEELSInterpolation( double t, vector<pair<double, double>> &imuVelVector);//插值
+    bool getWHEELSInterpolation( double t, vector<pair<double, Eigen::Vector3d>> &imuVelVector);//插值
     void getPoseInWorldFrame(Eigen::Matrix4d &T);
     void getPoseInWorldFrame(int index, Eigen::Matrix4d &T);
     void getVelInWorldFrame(Eigen::Vector3d &v);//获取速度
@@ -92,6 +92,7 @@ class Estimator
     bool WHEELSAvailable(double t);
     void writr_imu_data(double time,double length_,Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);
     void writr_integrate_data(string path);
+    void writr_ece(string path);
     //void writr_imu_data(Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);//自己写的 存储IMU数据
     void initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector);
 
@@ -115,9 +116,9 @@ class Estimator
     queue<pair<double, Eigen::Vector3d>> imuVelBuf; //imu对应轮式计的速度
     queue<pair<double, Eigen::Vector3d>> accWheelsBuf;//给轮速计提供IMU数据
     queue<pair<double, Eigen::Vector3d>> gyrWheelsBuf;
-    queue<pair<double, double>> velBuf;
+    queue<pair<double, Eigen::Vector3d>> velBuf;
     queue<pair<double, double>> ang_velBuf;
-    pair<double, double> temp_vel;//保存的临时的速度
+    pair<double, Eigen::Vector3d> temp_vel;//保存的临时的速度
     queue<pair<double, map<int, vector<pair<int, Eigen::Matrix<double, 7, 1> > > > > > featureBuf;
     double prevTime, curTime;
     bool openExEstimation;

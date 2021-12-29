@@ -246,11 +246,11 @@ void Estimator::inputWheelsIMU(double t, const Vector3d &linearAcceleration, con
 //    }
 }
 
-void Estimator::inputVEL(double t, const double &vel, const double &ang_vel)
+void Estimator::inputVEL(double t, const Eigen::Vector3d &velVec, const double &ang_vel)
 {
     //预测未考虑观测噪声的p、v、q值,同时将发布最新的IMU测量值消息（pvq值）
     mBuf.lock();
-    velBuf.push(make_pair(t, vel));
+    velBuf.push(make_pair(t, velVec));
 //    printf("input imu with time %f \n", t);
     mBuf.unlock();
 
@@ -310,7 +310,7 @@ bool Estimator::getIMUInterval(double t0, double t1, vector<pair<double, Eigen::
     return true;
 }
 
-bool Estimator::getWHEELSInterval(double t0, double t1, vector<pair<double, double>> &velVector,
+bool Estimator::getWHEELSInterval(double t0, double t1, vector<pair<double, Eigen::Vector3d>> &velVector,
                                vector<pair<double, double>> &ang_velVector)
 {
     if(velBuf.empty())
@@ -345,7 +345,7 @@ bool Estimator::getWHEELSInterval(double t0, double t1, vector<pair<double, doub
     return true;
 }
 
-bool Estimator::getWHEELSInterpolation(double t, vector<pair<double, double>> &imuVelVector)
+bool Estimator::getWHEELSInterpolation(double t, vector<pair<double, Eigen::Vector3d>> &imuVelVector)
 {
 //    std::cout<<"t= "<<t<<endl;
     if(velBuf.empty())
@@ -368,12 +368,12 @@ bool Estimator::getWHEELSInterpolation(double t, vector<pair<double, double>> &i
             velBuf.pop();
 //            gyrBuf.pop();
         }
-        pair<double,double>temp_back_t0;//t0后面的一个
+        pair<double,Eigen::Vector3d>temp_back_t0;//t0后面的一个
         temp_back_t0=velBuf.front();
         double deltaT = t-temp_vel.first;
         double dt = temp_back_t0.first-temp_vel.first;
-        double deltaV = temp_back_t0.second-temp_vel.second;
-        double vel_t0 = temp_vel.second + deltaV * deltaT / dt;
+        Eigen::Vector3d deltaV = temp_back_t0.second-temp_vel.second;
+        Eigen::Vector3d vel_t0 = temp_vel.second + deltaV * deltaT / dt;
 //        std::cout<<"t= "<<t<<endl;
         imuVelVector.push_back(make_pair(t , vel_t0));
 //        gyrVector.push_back(gyrBuf.front());
@@ -408,7 +408,7 @@ void Estimator::processMeasurements()
         //printf("process measurments\n");
         pair<double, map<int, vector<pair<int, Eigen::Matrix<double, 7, 1> > > > > feature;
         vector<pair<double, Eigen::Vector3d>> accVector, gyrVector;
-        vector<pair<double, double>> velVector,ang_velVector;
+        vector<pair<double, Eigen::Vector3d>> velVector,ang_velVector;
         if(!featureBuf.empty())
         {
             feature = featureBuf.front();
@@ -500,9 +500,9 @@ void Estimator::processMeasurements()
                     getWHEELSInterpolation(accVector[i].first, velVector);//获取时间间隔内的轮速计
                     if(i==0 && solver_flag == NON_LINEAR)
                     {
-                        vector<pair<double, double>> velVector_temp;
+                        vector<pair<double, Eigen::Vector3d>> velVector_temp;
                         getWHEELSInterpolation(prevTime, velVector_temp);//获取时间间隔内的轮速计
-                        Eigen::Vector3d velVec = Eigen::Vector3d(velVector_temp.front().second,0,0);
+                        Eigen::Vector3d velVec = velVector_temp.front().second;
                         std::cout<<"velVec="<<velVec.transpose()<<endl;
                         velVec = Rs[frame_count] * velVec;
 //                        Vs[frame_count]=velVec;
@@ -524,7 +524,9 @@ void Estimator::processMeasurements()
 
             mProcess.lock();
             processImage(feature.second, feature.first);//重要   特征点相关，时间戳// 处理图像 和IMU
-//            writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_process_img.csv");
+            writr_ece(OUTPUT_FOLDER+"exe.csv");//写外参
+            std::cout<<"para_Ex_Pose "<<para_Ex_Pose[0][0]<<" "<<para_Ex_Pose[0][1] <<" "<<para_Ex_Pose[0][2] <<" "<<
+                para_Ex_Pose[0][3] <<" "<<para_Ex_Pose[0][4] <<" "<<para_Ex_Pose[0][5] <<" "<<para_Ex_Pose[0][6] <<std::endl;
             prevTime = curTime;
             std::cout<<"latest_V= "<<latest_V.transpose()<<std::endl;
             printStatistics(*this, 0);//打印统计信息
@@ -612,6 +614,43 @@ void Estimator::writr_integrate_data(string path)
     }
 }
 
+void Estimator::writr_ece(string path)
+{
+    // write result to file
+    string imu_data_path=OUTPUT_FOLDER+"imu_2.csv";
+    imu_data_path = path;
+    ofstream foutC(imu_data_path, ios::app);//ios::app insert data from file end;
+    foutC.setf(ios::fixed, ios::floatfield);
+    foutC.precision(0);
+    foutC << inputImageCnt << ",";
+    foutC.precision(7);
+    if(pre_integrations[frame_count]!= nullptr)
+    {
+//        std::cout<<"write "<<pre_integrations[frame_count]->delta_p_i_vel<<endl;
+        Eigen::Quaterniond exe_q;
+        exe_q.x()=para_Ex_Pose[0][3];
+        exe_q.y()=para_Ex_Pose[0][4];
+        exe_q.z()=para_Ex_Pose[0][5];
+        exe_q.w()=para_Ex_Pose[0][6];
+        Eigen::Matrix3d exe_R = exe_q.toRotationMatrix();
+        Eigen::AngleAxis<double> angleaxis;
+        Eigen::Vector3d Euler_exe = exe_R.eulerAngles(2,1,0);
+        foutC << para_Ex_Pose[0][0]<<","
+              <<para_Ex_Pose[0][1] << ","
+              << para_Ex_Pose[0][2] << ","
+              << para_Ex_Pose[0][3]<<","
+              << para_Ex_Pose[0][4]<<","
+              << para_Ex_Pose[0][5]<<","
+              << para_Ex_Pose[0][5]<<","
+              << Euler_exe.x()*180.0f/M_PI<<","
+              << Euler_exe.y()*180.0f/M_PI<<","
+              << Euler_exe.z()*180.0f/M_PI<<","
+              << endl;
+        foutC.close();
+    }
+}
+
+
 void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector)
 {
     printf("init first imu pose\n");
@@ -628,6 +667,10 @@ void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVecto
     Matrix3d R0 = Utility::g2R(averAcc);//主要是为了做一个重力对齐
     double yaw = Utility::R2ypr(R0).x();
     R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
+//    R0 = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d EulerR0 = R0.eulerAngles(2,1,0);
+    std::cout<<"EulerR0= "<<180.0f/M_PI*EulerR0.transpose()<<std::endl;
+
     Rs[0] = R0;
     Eigen::Matrix3d Disturb;
     Disturb<<              1 ,-0.414   ,   1,
@@ -691,7 +734,7 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
     gyr_0 = angular_velocity;
 }
 
-void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity ,const double vel)
+void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity ,const Eigen::Vector3d vel)
 {
 
     // 1.imu未进来数据
@@ -700,7 +743,7 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         first_imu = true;
         acc_0 = linear_acceleration;
         gyr_0 = angular_velocity;
-        vel_0 = Eigen::Vector3d(vel,0,0);
+        vel_0 = vel;
     }
 // 2.IMU 预积分类对象还没出现，创建一个
     if (!pre_integrations[frame_count])
@@ -710,7 +753,8 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
     if (frame_count != 0)
     {
         // 3.预积分操作  是为了初始化的预积分
-        Eigen::Vector3d velVec=Eigen::Vector3d(vel,0,0);
+       // Eigen::Vector3d velVec=Eigen::Vector3d(vel,0,0);
+        Eigen::Vector3d velVec=vel;
         pre_integrations[frame_count]->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
 //        cout<<"pre_integrations vel_0 "<<pre_integrations[frame_count]->vel_0.transpose()<<endl;
 
@@ -745,7 +789,7 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         T_i_v.matrix().block<3,3>(0,0)=riv;
         T_i_v.matrix().block<3,1>(0,3)=tiv;
         Eigen::Matrix4d T_v=Eigen::Matrix4d::Identity();
-        T_v.matrix().block<3,1>(0,3)=Eigen::Vector3d(vel,0,0);
+        T_v.matrix().block<3,1>(0,3)=vel;
         T_v.matrix().block<3,3>(0,0)=Utility::deltaQ(un_gyr * dt).toRotationMatrix();
 //        Eigen::Vector3d Vels=Rs[j]*Eigen::Vector3d(vel,0,0);
         T_v=T_i_v*T_v*(T_i_v.inverse());
@@ -762,7 +806,7 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
     }
     acc_0 = linear_acceleration;
     gyr_0 = angular_velocity;
-    vel_0 = Eigen::Vector3d(vel,0,0);
+    vel_0 = vel;
 }
 
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header)

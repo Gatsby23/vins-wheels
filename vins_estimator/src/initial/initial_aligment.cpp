@@ -282,9 +282,13 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
     }
 
     RefineGravity(all_image_frame, g, x);//重力优化
+    Matrix3d R_g = Utility::g2R(g);//计算夹角
+    Eigen::Vector3d EulerRg = R_g.eulerAngles(2,1,0);
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
     cout<<"g after RefineGravity ="<<g<<endl;//相机坐标系下的g
+    cout<< "EulerRg= "<<(180.f/M_PI*EulerRg).transpose()<<endl;
+
     ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
     if(s < 0.0 )
         return false;   
@@ -390,6 +394,9 @@ bool LinearAlignmentWithS(map<double, ImageFrame> &all_image_frame, Vector3d &g,
 
 //    s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s_;
+    Matrix3d R_g = Utility::g2R(g);//计算夹角
+    Eigen::Vector3d EulerRg = R_g.eulerAngles(2,1,0);
+    cout<< "EulerRg= "<<(180.f/M_PI*EulerRg).transpose()<<endl;
     cout<<"g after RefineGravity ="<<g<<"\t g norm="<<g.norm()<<endl;//相机坐标系下的g
     ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
     if(s < 0.0 )

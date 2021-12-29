@@ -3,10 +3,19 @@ linux/code/vins_fusion_ws/build/devel/lib/vins/kaist_viwo /home/q/linux/code/vin
 38
 linux/code/vins_fusion_ws/build/devel/lib/vins/kaist_viwo /home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_stereo_config_sfm.yaml /home/q_ftp/DataSet1/KAIST/urban38-pankyo_img/urban38-pankyo/image/ /home/q_ftp/DataSet1/KAIST/urban38-pankyo_data/urban38-pankyo/sensor_data/xsens_imu.csv /home/q_ftp/DataSet1/KAIST/urban38-pankyo_data/urban38-pankyo/sensor_data/encoder.csv
 27
-linux/code/vins_fusion_ws/build/devel/lib/vins/kaist_viwo /home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_stereo_config_sfm.yaml /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_img/urban27-dongtan/image/ /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_data/urban27-dongtan/sensor_data/xsens_imu.csv /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_data/urban27-dongtan/sensor_data/encoder.csv
+linux/code/vins_fusion_ws/build/devel/lib/vins/kaist_viwo /home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_stereo_config_sfm.yaml /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_img/urban27-dongtan/image/ /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_data/urban27-dongtan/sensor_data/xsens_imu.csv /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_data/urban27-dongtan/sensor_data/encoder.csv /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan_data/urban27-dongtan/sensor_data/gps.csv
 
 /home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_stereo_config_sfm.yaml /home/q_ftp/DataSet1/KAIST/kaist38/urban38-pankyo_img/urban38-pankyo/image/ /home/q_ftp/DataSet1/KAIST/kaist38/urban38-pankyo_data/urban38-pankyo/sensor_data/xsens_imu.csv /home/q_ftp/DataSet1/KAIST/kaist38/urban38-pankyo_data/urban38-pankyo/sensor_data/encoder.csv /home/q_ftp/DataSet1/KAIST/kaist38/urban38-pankyo_data/urban38-pankyo/sensor_data/gps.csv
 
 linux/code/vins_fusion_ws/build/devel/lib/vins/kaist_viwo
 
 /home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_stereo_config_sfm.yaml /home/q_ftp/DataSet1/KAIST/kaist39/image/ /home/q_ftp/DataSet1/KAIST/kaist39/sensor_data/sensor_data/xsens_imu.csv /home/q_ftp/DataSet1/KAIST/kaist39/sensor_data/sensor_data/encoder.csv /home/q_ftp/DataSet1/KAIST/kaist39/sensor_data/sensor_data/gps.csv
+
+
+
+UISEE
+/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/uisee/uisee_sfm_config.yaml /media/q/neu/dataset/Uisee_0/log_2021-09-01-10-46-28_s/dump_images/ /media/q/neu/dataset/Uisee_0/log_2021-09-01-10-46-28_s/dump_images/imu.txt /media/q/neu/dataset/Uisee_0/log_2021-09-01-10-46-28_s/dump_images/can.txt /media/q/neu/dataset/Uisee_0/log_2021-09-01-10-46-28_s/dump_images/gps.txt
+/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/uisee/uisee_sfm_config.yaml /media/q/neu/dataset/Uisee_0/cam_calib_data_2021-08-06_8/dump_images/ /media/q/neu/dataset/Uisee_0/cam_calib_data_2021-08-06_8/dump_images/imu.txt /media/q/neu/dataset/Uisee_0/cam_calib_data_2021-08-06_8/dump_images/can.txt /media/q/neu/dataset/Uisee_0/cam_calib_data_2021-08-06_8/dump_images/gps.txt
+
+
+
