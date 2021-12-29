@@ -1685,11 +1685,19 @@ void Estimator::optimization()
             <<"\tpos j:"<<para_Pose[j][0]<<"  "<<para_Pose[j][1]<<"  "<<para_Pose[j][2]<<endl;
             bool show=false;
             if(i==frame_count-1) show = true;
-
-            IMUFactor* imu_factor = new IMUFactor(pre_integrations[j], show);
-//            IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[j]);
-//            IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[j],show);
-            problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
+            if (IMU_FACTOR == 0) {
+                IMUFactor *imu_factor = new IMUFactor(pre_integrations[j], show);
+                problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
+                                         para_SpeedBias[j]);
+            } else if (IMU_FACTOR == 1) {
+                IMUFactor_origin *imu_factor = new IMUFactor_origin(pre_integrations[j]);
+                problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
+                                         para_SpeedBias[j]);
+            } else {
+                IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[j], show);
+                problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
+                                         para_SpeedBias[j]);
+            }
         }
     }
 //    if(0)
@@ -1812,13 +1820,19 @@ void Estimator::optimization()
         {
             if (pre_integrations[1]->sum_dt < 10.0)
             {
-                IMUFactor* imu_factor = new IMUFactor(pre_integrations[1], false);
-//                IMUFactor_origin* imu_factor = new IMUFactor_origin(pre_integrations[1]);
-//                IMUEncoderFactor* imu_factor=new IMUEncoderFactor(pre_integrations[1], false);
-                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
-                                                                               vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
-                                                                               vector<int>{0, 1});
-                marginalization_info->addResidualBlockInfo(residual_block_info);
+                if (IMU_FACTOR == 0) {
+                    IMUFactor *imu_factor = new IMUFactor(pre_integrations[1], false);
+                    ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,vector<double *>{para_Pose[0],para_SpeedBias[0],para_Pose[1],para_SpeedBias[1]},vector<int>{0, 1});
+                    marginalization_info->addResidualBlockInfo(residual_block_info);
+                } else if (IMU_FACTOR == 1) {
+                    IMUFactor_origin *imu_factor = new IMUFactor_origin(pre_integrations[1]);
+                    ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,vector<double *>{para_Pose[0],para_SpeedBias[0],para_Pose[1],para_SpeedBias[1]},vector<int>{0, 1});
+                    marginalization_info->addResidualBlockInfo(residual_block_info);
+                } else {
+                    IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[1], false);
+                    ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,vector<double *>{para_Pose[0],para_SpeedBias[0],para_Pose[1],para_SpeedBias[1]},vector<int>{0, 1});
+                    marginalization_info->addResidualBlockInfo(residual_block_info);
+                }
             }
         }
         if(0)//(USE_WHEELS)

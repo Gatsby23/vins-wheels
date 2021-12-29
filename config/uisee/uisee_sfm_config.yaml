@@ -5,6 +5,7 @@ imu: 1
 num_of_cam: 1
 wheels: 1
 have_vel_T_cam: 1  #是否有轮速计到相机的外参
+imu_factor: 0   #imu factor 选项 0:是自己的  1:是原始的  2:是encode
 
 imu_topic: "Imu"
 image0_topic: "/leftImage"

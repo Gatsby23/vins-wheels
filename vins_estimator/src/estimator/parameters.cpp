@@ -56,6 +56,8 @@ double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
 
+int IMU_FACTOR;
+
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -96,6 +98,7 @@ void readParameters(std::string config_file)
     F_THRESHOLD = fsSettings["F_threshold"];
     SHOW_TRACK = fsSettings["show_track"];
     FLOW_BACK = fsSettings["flow_back"];
+    IMU_FACTOR = fsSettings["imu_factor"];
 
     MULTIPLE_THREAD = fsSettings["multiple_thread"];
 

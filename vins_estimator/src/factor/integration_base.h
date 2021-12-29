@@ -501,12 +501,18 @@ class IntegrationBase
 //                 <<"\n linearized_ba "<<linearized_ba.transpose()<<"\tlinearized_bg "<<linearized_bg.transpose()<<endl;
 //        std::cout<<"vel_0 "<<vel_0.transpose()<<"\tvel_1 "<<vel_1.transpose()<<std::endl;
 //    midPointIntegration_encode   midPointIntegration_wheel
-        midPointIntegration_wheel(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
-                                  linearized_ba, linearized_bg,
-                                  result_delta_p, result_delta_q, result_delta_v,
-                                  result_linearized_ba, result_linearized_bg, 1,
-                                  vel_0, vel_1, delta_p_i_vel, result_delta_p_vel);
-
+        if(IMU_FACTOR==0)
+            midPointIntegration_wheel(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
+                                      linearized_ba, linearized_bg,
+                                      result_delta_p, result_delta_q, result_delta_v,
+                                      result_linearized_ba, result_linearized_bg, 1,
+                                      vel_0, vel_1, delta_p_i_vel, result_delta_p_vel);
+        else
+            midPointIntegration_encode(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
+                                      linearized_ba, linearized_bg,
+                                      result_delta_p, result_delta_q, result_delta_v,
+                                      result_linearized_ba, result_linearized_bg, 1,
+                                      vel_0, vel_1, delta_p_i_vel, result_delta_p_vel);
         //checkJacobian(_dt, acc_0, gyr_0, acc_1, gyr_1, delta_p, delta_q, delta_v,
         //                    linearized_ba, linearized_bg);
         delta_p = result_delta_p;
