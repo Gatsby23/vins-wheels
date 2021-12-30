@@ -628,20 +628,21 @@ void Estimator::writr_ece(string path)
     {
 //        std::cout<<"write "<<pre_integrations[frame_count]->delta_p_i_vel<<endl;
         Eigen::Quaterniond exe_q;
-        exe_q.x()=para_Ex_Pose[0][3];
-        exe_q.y()=para_Ex_Pose[0][4];
-        exe_q.z()=para_Ex_Pose[0][5];
-        exe_q.w()=para_Ex_Pose[0][6];
+//        exe_q.x()=para_Ex_Pose[0][3];
+//        exe_q.y()=para_Ex_Pose[0][4];
+//        exe_q.z()=para_Ex_Pose[0][5];
+//        exe_q.w()=para_Ex_Pose[0][6];
+        exe_q = ric[0];
         Eigen::Matrix3d exe_R = exe_q.toRotationMatrix();
         Eigen::AngleAxis<double> angleaxis;
         Eigen::Vector3d Euler_exe = exe_R.eulerAngles(2,1,0);
-        foutC << para_Ex_Pose[0][0]<<","
-              <<para_Ex_Pose[0][1] << ","
-              << para_Ex_Pose[0][2] << ","
-              << para_Ex_Pose[0][3]<<","
-              << para_Ex_Pose[0][4]<<","
-              << para_Ex_Pose[0][5]<<","
-              << para_Ex_Pose[0][5]<<","
+        foutC <<    tic[0].x()<<","
+              <<    tic[0].y() << ","
+              <<    tic[0].z()<< ","
+              <<    exe_q.x()<<","
+              <<    exe_q.y()<<","
+              <<    exe_q.z()<<","
+              <<    exe_q.w()<<","
               << Euler_exe.x()*180.0f/M_PI<<","
               << Euler_exe.y()*180.0f/M_PI<<","
               << Euler_exe.z()*180.0f/M_PI<<","
@@ -1698,6 +1699,9 @@ void Estimator::optimization()
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
                                          para_SpeedBias[j]);
             }
+//            IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[j], show);
+//            problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
+//                                     para_SpeedBias[j]);
         }
     }
 //    if(0)
@@ -1833,6 +1837,9 @@ void Estimator::optimization()
                     ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,vector<double *>{para_Pose[0],para_SpeedBias[0],para_Pose[1],para_SpeedBias[1]},vector<int>{0, 1});
                     marginalization_info->addResidualBlockInfo(residual_block_info);
                 }
+//                IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[1], false);
+//                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,vector<double *>{para_Pose[0],para_SpeedBias[0],para_Pose[1],para_SpeedBias[1]},vector<int>{0, 1});
+//                marginalization_info->addResidualBlockInfo(residual_block_info);
             }
         }
         if(0)//(USE_WHEELS)

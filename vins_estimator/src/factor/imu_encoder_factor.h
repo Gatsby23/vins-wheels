@@ -140,7 +140,7 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[1]);
                 jacobian_speedbias_i.setZero();
                 jacobian_speedbias_i.block<3, 3>(0, 0) = -Qi.inverse().toRotationMatrix() * sum_dt;//O_P, O_V - O_V
-//                jacobian_speedbias_i.block<3, 3>(0, 3) = -dp_dba;//O_P, O_BA - O_V---------------------ba
+                jacobian_speedbias_i.block<3, 3>(0, 3) = -dp_dba;//O_P, O_BA - O_V---------------------ba
                 jacobian_speedbias_i.block<3, 3>(0, 6) = -dp_dbg;//O_P, O_BG - O_V
 
 #if 0
@@ -152,12 +152,12 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 #endif
 
                 jacobian_speedbias_i.block<3, 3>(6, 0) = -Qi.inverse().toRotationMatrix();//O_V, O_V - O_V
-//                jacobian_speedbias_i.block<3, 3>(6, 3) = -dv_dba;//O_V, O_BA - O_V---------------------ba
+                jacobian_speedbias_i.block<3, 3>(6, 3) = -dv_dba;//O_V, O_BA - O_V---------------------ba
                 jacobian_speedbias_i.block<3, 3>(6, 6) = -dv_dbg;//O_V, O_BG - O_V
 
                     jacobian_speedbias_i.block<3, 3>(9, 6) = -do_dbg;//O_P_Vel, O_BG - O_V
 
-//                jacobian_speedbias_i.block<3, 3>(12, 3) = -Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
+                jacobian_speedbias_i.block<3, 3>(12, 3) = -Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
 
                 jacobian_speedbias_i.block<3, 3>(15, 6) = -Eigen::Matrix3d::Identity();//O_BG, O_BG - O_V
 
@@ -194,7 +194,7 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 
                 jacobian_speedbias_j.block<3, 3>(6, 0) = Qi.inverse().toRotationMatrix();//O_V, O_V - O_V
 
-//                jacobian_speedbias_j.block<3, 3>(12, 3) = Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
+                jacobian_speedbias_j.block<3, 3>(12, 3) = Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
 
                 jacobian_speedbias_j.block<3, 3>(15, 6) = Eigen::Matrix3d::Identity();//O_BG, O_BG - O_V
 

@@ -501,7 +501,7 @@ class IntegrationBase
 //                 <<"\n linearized_ba "<<linearized_ba.transpose()<<"\tlinearized_bg "<<linearized_bg.transpose()<<endl;
 //        std::cout<<"vel_0 "<<vel_0.transpose()<<"\tvel_1 "<<vel_1.transpose()<<std::endl;
 //    midPointIntegration_encode   midPointIntegration_wheel
-        if(IMU_FACTOR==0)
+        if(IMU_FACTOR==0 || IMU_FACTOR==1)
             midPointIntegration_wheel(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
                                       linearized_ba, linearized_bg,
                                       result_delta_p, result_delta_q, result_delta_v,
