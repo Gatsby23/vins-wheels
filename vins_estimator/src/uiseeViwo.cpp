@@ -119,6 +119,10 @@ int main(int argc, char** argv)
     path_Save.open((OUTPUT_FOLDER + "/vio_tum.txt").c_str() );
     path_Save<<fixed;
 
+    ofstream stateSave;
+    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
+    stateSave<<fixed;
+
     ofstream imu_path(OUTPUT_FOLDER+"imu_int_origin.csv");
 //    imu_path.open((OUTPUT_FOLDER+"imu_int_origin.csv").c_str());
     imu_path<<"imu data"<<endl;
@@ -140,7 +144,7 @@ int main(int argc, char** argv)
     double wheels_time=0,last_wheels_time=0;
     double gps_time=0;
     Eigen::Vector2d wheels_cnt;
-    for (size_t i = 0; i < vTimestamps.size(); i++)
+    for (size_t i = 0; i < vTimestamps.size(); i=i+3)//10916   图像时间戳间隔太低，会使IMU信息矩阵过大
     {
         if(ros::ok())
         {
@@ -227,6 +231,21 @@ int main(int argc, char** argv)
                 path_Save<<setprecision(6)<<vTimestamps[i]<<" "<<
                      setprecision(7)<<pose(0,3)<<" "<<pose(1,3)<<" "<<pose(2,3)<<" "<<
                      q_.x()<<" "<<q_.y()<<" "<<q_.z()<<" "<<q_.w()<<endl;
+            stateSave.precision(6);
+            stateSave << vTimestamps[i]<< ",";
+            stateSave.precision(5);
+            stateSave <<"Ps: "<<estimator.Ps[WINDOW_SIZE].x() << ","<< estimator.Ps[WINDOW_SIZE].y() << ","<< estimator.Ps[WINDOW_SIZE].z() << "\t"
+                      <<"Vs: "<< estimator.Vs[WINDOW_SIZE].x() << ","<< estimator.Vs[WINDOW_SIZE].y() << ","<< estimator.Vs[WINDOW_SIZE].z() <<","<<estimator.Vs[WINDOW_SIZE].norm()<<"\t"
+                      <<"vVel: "<<vel;
+            if(estimator.solver_flag==Estimator::SolverFlag::NON_LINEAR && estimator.pre_integrations[estimator.frame_count-1]->sum_dt>0)
+            {
+                stateSave<<"\tangVel: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_angleaxis.angle()*180.0f/M_PI/estimator.pre_integrations[estimator.frame_count-1]->sum_dt
+                         <<"\tpara_SpeedBias:v: "<<estimator.para_SpeedBias[estimator.frame_count-1][0]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][1]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][2]
+                         <<"\tba: "<<estimator.para_SpeedBias[estimator.frame_count-1][3]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][4]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][5]
+                         <<"\tbg: "<<estimator.para_SpeedBias[estimator.frame_count-1][6]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][7]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][8]<<endl;
+            }
+            else
+                stateSave<<endl;
             if(outFile != NULL)
                 fprintf (outFile, "%f %f %f %f %f %f %f %f \n",
                          vTimestamps[i],
@@ -245,6 +264,7 @@ int main(int argc, char** argv)
     }
     if(outFile != NULL)
         fclose (outFile);
+    stateSave.close();
     return 0;
 }
 
@@ -328,7 +348,8 @@ int readImuFile(ifstream &imufile,double &time,Eigen::Vector3d &mag,Eigen::Vecto
         lineArray.push_back(str);
     double time_now = stod(lineArray[1]);
 //    if(time_now<=time_begin)return 0;//小于开始的时间戳就不要了
-    if (time_now == time)return 2;
+    if (time_now == time)
+        return 2;
     time = time_now;
 //    Eigen::Quaterniond q_;
 //    q_.x() = stod(lineArray[1]);

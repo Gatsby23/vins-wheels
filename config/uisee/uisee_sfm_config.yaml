@@ -26,10 +26,20 @@ body_T_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [ 9.9593468598845236e-01, -7.9571370825795504e-03,8.9726167947437957e-02, 1.1458418131043753e-01,
-           -9.0035110339107216e-02, -5.7090331544469741e-02,9.9430094687190540e-01, -2.4316535165940545e-01,
-           -2.7892922592644004e-03, -9.9833730673234478e-01,-5.7574663134931647e-02, 5.9419269671671859e-01,
-           0., 0., 0., 1. ]
+   data:  [ 9.9818203561639529e-01, -3.4023903135478387e-03,-6.0175140322758058e-02, -9.8067999524864682e-02,
+            5.9801350847866301e-02, -6.8519683996411507e-02,9.9585583863418825e-01, -9.9764997585292017e-02,
+            -7.5114718584141128e-03, -9.9764396286710744e-01,-6.8191650114468150e-02, 7.0854106945505224e-01,
+            0., 0., 0., 1. ]
+
+#  [ 9.9498731524000927e-01, -6.4687351776720053e-03,9.9791773091169933e-02, 1.3037927781909447e-01,
+#            -9.9994908920347680e-02, -5.3153812165683378e-02,9.9356715447032917e-01, -2.2684694973305650e-01,
+#            -1.1228096409331492e-03, -9.9856538479833989e-01,-5.3534209446426173e-02, 6.5362687111488627e-01,
+#            0., 0., 0., 1. ]
+
+#  [ 9.9593468598845236e-01, -7.9571370825795504e-03,8.9726167947437957e-02, 1.1458418131043753e-01,
+#           -9.0035110339107216e-02, -5.7090331544469741e-02,9.9430094687190540e-01, -2.4316535165940545e-01,
+#           -2.7892922592644004e-03, -9.9833730673234478e-01,-5.7574663134931647e-02, 5.9419269671671859e-01,
+#           0., 0., 0., 1. ]
 
 body_T_cam1: !!opencv-matrix
    rows: 4
@@ -61,7 +71,7 @@ vel_T_cam0: !!opencv-matrix
 multiple_thread: 0
 
 #feature traker paprameters
-max_cnt: 200            # max feature number in feature tracking
+max_cnt: 500            # max feature number in feature tracking
 min_dist: 30            # min distance between two features 
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0        # ransac threshold (pixel)
@@ -72,7 +82,7 @@ flow_back: 1            # perform forward and backward optical flow to improve f
 max_solver_time: 0.08  # max solver itration time (s), to guarantee real time
 max_num_iterations: 10   # max solver itrations, to guarantee real time
 keyframe_parallax: 3 # keyframe selection threshold (pixel)
-max_ang_vel: 10.0 #角速度阈值
+max_ang_vel: 100.0 #角速度阈值
 
 #imu parameters       The more accurate parameters you provide, the better performance
 acc_n: 0.1          # accelerometer measurement noise standard deviation. #0.2   0.04

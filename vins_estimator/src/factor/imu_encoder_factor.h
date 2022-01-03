@@ -102,7 +102,7 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
             {
                 ROS_WARN("numerical unstable in preintegration, max:%f, (%f, %f), min:%f, (%f, %f)", 
                         pre_integration->jacobian_enc.maxCoeff(), pre_integration->jacobian_enc.minCoeff(), maxRow, maxCol, minRow, minCol);
-                //std::cout << pre_integration->jacobian << std::endl;
+                std::cout << "unstable in preintegration pre_integration->jacobian\n"<<pre_integration->jacobian << std::endl;
 ///                ROS_BREAK();
             }
 
@@ -131,7 +131,8 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 if (jacobian_pose_i.maxCoeff(&maxRow, &maxCol) > 1e8 || jacobian_pose_i.minCoeff(&minRow, &minCol) < -1e8)
                 {
                     ROS_WARN("numerical unstable in jacobians, max:%f, (%f, %f), min:%f, (%f, %f)", 
-                            jacobian_pose_i.maxCoeff(), jacobian_pose_i.minCoeff(), maxRow, maxCol, minRow, minCol);                    //std::cout << sqrt_info << std::endl;
+                            jacobian_pose_i.maxCoeff(), jacobian_pose_i.minCoeff(), maxRow, maxCol, minRow, minCol);
+                    std::cout <<  "unstable in jacobians \n sqrt_info \n"<<sqrt_info<<"\njacobian_pose_i\n"<<jacobian_pose_i<< std::endl;
                     //ROS_BREAK();
                 }
             }
