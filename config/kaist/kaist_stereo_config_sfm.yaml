@@ -6,12 +6,13 @@ imu: 1
 num_of_cam: 1
 wheels: 1
 have_vel_T_cam: 0  #是否有轮速计到相机的外参
-imu_factor: 2   #imu factor 选项 0:是自己的  1:是原始的  2:是encode
+imu_factor: 1   #imu factor 选项 0:是自己的  1:是原始的  2:是encode
 
 imu_topic: "/imu0"
 image0_topic: "/cam0/image_raw"
 image1_topic: "/cam1/image_raw"
-output_path: "/home/q/linux/output/newdata/"
+#output_path: "/home/q/linux/output/newdata/"
+output_path:  "/home/qcx/linux/output/newdata/"
 
 cam0_calib: "cam0_pinhole.yaml"
 cam1_calib: "cam1_pinhole.yaml"
@@ -81,5 +82,6 @@ td: 0.0                             # initial value of time offset. unit: s. rea
 
 #loop closure parameters
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
-pose_graph_save_path: "/home/q/linux/output/newdata/" # save and load path
+#pose_graph_save_path: "/home/q/linux/output/newdata/" # save and load path
+pose_graph_save_path: "/home/qcx/linux/output/newdata/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0

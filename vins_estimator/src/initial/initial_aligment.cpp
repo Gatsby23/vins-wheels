@@ -233,6 +233,7 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
         tmp_b.setZero();
 
         double dt = frame_j->second.pre_integration->sum_dt;
+        std::cout<<"sum dt= "<<dt <<"\t\ttime="<<frame_i->first<<std::endl;
         //
         // A是论文中的H矩阵 b是论文中的观测矩阵z
         tmp_A.block<3, 3>(0, 0) = -dt * Matrix3d::Identity();
@@ -262,13 +263,13 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
 
         A.block<6, 4>(i * 3, n_state - 4) += r_A.topRightCorner<6, 4>();
         A.block<4, 6>(n_state - 4, i * 3) += r_A.bottomLeftCorner<4, 6>();
-        cout<<setprecision(2)<<"A=\n"<<A<<endl;
+//        cout<<setprecision(2)<<"A=\n"<<A<<endl;
     }
     A = A * 1000.0;
     b = b * 1000.0;
     x = A.ldlt().solve(b);//LDLT求最小二乘解  其实就是处理AT*A*x=AT*b问题
-//    cout<<setprecision(2)<<"A=\n"<<A<<endl;
-//    cout<<"b= \n"<<b<<endl;
+    cout<<setprecision(2)<<"Ax=\n"<<A*x<<endl;
+    cout<<"b= \n"<<b<<endl;
     cout<<"x=\n"<<x<<endl;
     double s = x(n_state - 1) / 100.0;
     cout<<"s="<<s<<endl;
@@ -291,7 +292,7 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
 
     ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
     if(s < 0.0 )
-        return false;   
+        return false;
     else
         return true;
 }
@@ -432,8 +433,8 @@ bool solve_s(map<double, ImageFrame> &all_image_frame , double &s)
         A(i)=temp_A;
         b(i)=temp_b;
     }
-//    std::cout<<"A\n"<<A<<std::endl;
-//    std::cout<<"b\n"<<b<<std::endl;
+    std::cout<<"solved A\n"<<A<<std::endl;
+    std::cout<<"solved b\n"<<b<<std::endl;
     VectorXd s_ = (A.transpose()*A).inverse()*(A.transpose()*b);
     s=s_.norm();
     std::cout<<"s solved="<<s<<std::endl;
@@ -444,7 +445,8 @@ bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs,
     solveGyroscopeBias(all_image_frame, Bgs);//陀螺仪bias矫正
     double s;//尺度
     solve_s(all_image_frame,s);//计算尺度
-    if(LinearAlignmentWithS(all_image_frame, g, x, s))////线性对准  LinearAlignment(all_image_frame, g, x)  LinearAlignmentWithS(all_image_frame, g, x, s)
+//    if(LinearAlignmentWithS(all_image_frame, g, x, s))////线性对准  LinearAlignment(all_image_frame, g, x)  LinearAlignmentWithS(all_image_frame, g, x, s)
+    if(LinearAlignment(all_image_frame, g, x))
         return true;
     else 
         return false;

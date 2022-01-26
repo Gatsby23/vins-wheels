@@ -217,6 +217,25 @@ int main(int argc, char** argv)
                 path_Save<<setprecision(6)<<vTimestamps[i]<<" "<<
                      setprecision(7)<<pose(0,3)<<" "<<pose(1,3)<<" "<<pose(2,3)<<" "<<
                      q_.x()<<" "<<q_.y()<<" "<<q_.z()<<" "<<q_.w()<<endl;
+
+            if(estimator.initResult)
+            {
+                estimator.initResult=false;
+                for (int j = 0; j < WINDOW_SIZE; j++)
+                {
+                    stateSave.precision(6);
+                    stateSave << vTimestamps[i-WINDOW_SIZE+j]<< ",";
+                    stateSave.precision(5);
+                    stateSave <<"initPs: "<<estimator.Ps[j].x() << ","<< estimator.Ps[j].y() << ","<< estimator.Ps[j].z() << "\t"
+                              <<"Vs: "<< estimator.Vs[j].x() << ","<< estimator.Vs[j].y() << ","<< estimator.Vs[j].z() <<","<<estimator.Vs[j].norm()<<"\t"
+                              <<"vVel: "<<vel;
+                    stateSave<<"\tangVel: "<<estimator.pre_integrations[j]->delta_angleaxis.angle()*180.0f/M_PI/estimator.pre_integrations[j]->sum_dt
+                             <<"\tpara_SpeedBias:v: "<<estimator.para_SpeedBias[j][0]<<","<<estimator.para_SpeedBias[j][1]<<","<<estimator.para_SpeedBias[j][2]
+                             <<"\tba: "<<estimator.para_SpeedBias[j][3]<<","<<estimator.para_SpeedBias[j][4]<<","<<estimator.para_SpeedBias[j][5]
+                             <<"\tbg: "<<estimator.para_SpeedBias[j][6]<<","<<estimator.para_SpeedBias[j][7]<<","<<estimator.para_SpeedBias[j][8]<<endl;
+                    stateSave<<endl;
+                }
+            }
             stateSave.precision(6);
             stateSave << vTimestamps[i]<< ",";
             stateSave.precision(5);
@@ -449,6 +468,7 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
         return false;
     }
     time_=0.5f*(time_now+time_last_);
+    time_=time_now;
 //    std::cout<<"time_now="<<setprecision(17)<<time_now<<" mid="<<0.5*(time_now+time_last_)<<std::endl;
     time_last_=time_now;
     wheels=wheels_now;

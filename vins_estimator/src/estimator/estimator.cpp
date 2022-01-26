@@ -904,7 +904,36 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 }
                 if(result)
                 {
+                    initResult = true;
+                    ofstream stateSave(OUTPUT_FOLDER + "/init_state.txt");
+//                    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
+                    stateSave<<fixed;
+                    for (int i = 0; i <= frame_count; i++)
+                    {
+                        stateSave.precision(6);
+                        stateSave <<"init before opt " <<i<< "\t";
+                        stateSave.precision(5);
+                        stateSave <<"Ps: "<<Ps[i].x() << ","<< Ps[i].y() << ","<< Ps[i].z() << "\t"
+                                  <<"Vs: "<< Vs[i].x() << ","<< Vs[i].y() << ","<< Vs[i].z() <<","<<Vs[i].norm()<< "\t"
+                                  <<"Bas: "<<Bas[i].x()<<","<<Bas[i].y()<<","<<Bas[i].z()<< "\t"
+                                  <<"Bgs: "<<Bgs[i].x()<<","<<Bgs[i].y()<<","<<Bgs[i].z()
+                                  <<endl;
+                    }
+//                    std::cout<<"s= "<<s<<std::endl;
                     optimization();
+
+                    for (int i = 0; i <= frame_count; i++)
+                    {
+                        stateSave.precision(6);
+                        stateSave <<"init after opt " <<i<< "\t";
+                        stateSave.precision(5);
+                        stateSave <<"Ps: "<<Ps[i].x() << ","<< Ps[i].y() << ","<< Ps[i].z() << "\t"
+                                  <<"Vs: "<< Vs[i].x() << ","<< Vs[i].y() << ","<< Vs[i].z() <<","<<Vs[i].norm()<< "\t"
+                                  <<"Bas: "<<Bas[i].x()<<","<<Bas[i].y()<<","<<Bas[i].z()<< "\t"
+                                  <<"Bgs: "<<Bgs[i].x()<<","<<Bgs[i].y()<<","<<Bgs[i].z()
+                                  <<endl;
+                    }
+
                     updateLatestStates();
                     solver_flag = NON_LINEAR;
                     slideWindow();
@@ -1392,6 +1421,7 @@ bool Estimator::visualInitialAlign()//视觉惯性对齐
     {
         std::cout<<"PS[i]= "<<Ps[i].transpose()<<"\tVs[i]="<<Vs[i].transpose()<<endl;
     }
+    std::cout<<"s= "<<s<<std::endl;
     ROS_DEBUG_STREAM("g0     " << g.transpose());
     ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose());
     f_manager.clearDepth();

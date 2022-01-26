@@ -35,7 +35,7 @@ include_directories(
 
 catkin_package()
 
-add_library(vins_lib2
+add_library(vins_lib_viwo
     src/estimator/parameters.cpp
     src/estimator/estimator.cpp
     src/estimator/feature_manager.cpp
@@ -52,33 +52,33 @@ add_library(vins_lib2
     src/initial/initial_sfm.cpp
     src/initial/initial_ex_rotation.cpp
     src/featureTracker/feature_tracker.cpp)
-target_link_libraries(vins_lib2 ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
+target_link_libraries(vins_lib_viwo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 
 
 add_executable(vins_node src/rosNodeTest.cpp)
-target_link_libraries(vins_node vins_lib) 
+target_link_libraries(vins_node vins_lib2)
 
 add_executable(kitti_odom_test src/KITTIOdomTest.cpp)
-target_link_libraries(kitti_odom_test vins_lib) 
+target_link_libraries(kitti_odom_test vins_lib2)
 
 add_executable(kitti_gps_test src/KITTIGPSTest.cpp)
-target_link_libraries(kitti_gps_test vins_lib)
+target_link_libraries(kitti_gps_test vins_lib2)
 
 add_executable(kitti_sfm src/KITTISfm.cpp)
-target_link_libraries(kitti_sfm vins_lib)
+target_link_libraries(kitti_sfm vins_lib2)
 
 add_executable(nclt_sfm src/NCLTSfm.cpp)
-target_link_libraries(nclt_sfm vins_lib)
+target_link_libraries(nclt_sfm vins_lib2)
 
 add_executable(uisee_sfm src/uiseeSfm.cpp)
-target_link_libraries(uisee_sfm vins_lib)
+target_link_libraries(uisee_sfm vins_lib2)
 
 set(SOURCE_FILES src/KAISTSfm.cpp)
 add_executable(kaist_sfm ${SOURCE_FILES} )
-target_link_libraries(kaist_sfm vins_lib)
+target_link_libraries(kaist_sfm vins_lib2)
 
 add_executable(kaist_viwo src/KAISTViwo.cpp )
-target_link_libraries(kaist_viwo vins_lib2)
+target_link_libraries(kaist_viwo vins_lib_viwo)
 
 add_executable(uisee_viwo src/uiseeViwo.cpp )
 target_link_libraries(uisee_viwo vins_lib2)

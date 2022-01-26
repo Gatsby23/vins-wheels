@@ -202,4 +202,5 @@ class Estimator
 
     bool initFirstPoseFlag;
     bool initThreadFlag;
+    bool initResult=false;
 };
