@@ -38,6 +38,7 @@ std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
 std::string OUTPUT_FOLDER;
 std::string IMU_TOPIC;
+int CAM_NUM ;
 int ROW, COL;
 double TD;
 int NUM_OF_CAM;
@@ -99,6 +100,7 @@ void readParameters(std::string config_file)
     SHOW_TRACK = fsSettings["show_track"];
     FLOW_BACK = fsSettings["flow_back"];
     IMU_FACTOR = fsSettings["imu_factor"];
+    CAM_NUM = fsSettings["cam_num"];
 
     MULTIPLE_THREAD = fsSettings["multiple_thread"];
 

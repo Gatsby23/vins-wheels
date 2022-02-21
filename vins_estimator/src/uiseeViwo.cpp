@@ -28,9 +28,8 @@ using namespace std;
 using namespace Eigen;
 
 void LoadImages(const string &strPathToSequence,
-                vector<string> &vstrImageFilenames0,
-                vector<string> &vstrImageFilenames1,
-                vector<double> &vTimestamps);
+                vector<string> &vstrImageFilenames0,vector<string> &vstrImageFilenames1,
+                vector<double> &vTimestamps0,vector<double> &vTimestamps1);
 int readImuFile(ifstream &imufile,double &time,
                  Eigen::Vector3d &mag,Eigen::Vector3d &acc,Eigen::Vector3d &gyr,
                  std::vector<std::vector<double>> &odom_ ,sensor_msgs::Imu &imuMsg);//返回1 正常  返回2 数据无效 返回3 数据完成
@@ -91,8 +90,8 @@ int main(int argc, char** argv)
     // load image list
     vector<string> vstrImageFilenames0;
     vector<string> vstrImageFilenames1;
-    vector<double> vTimestamps;
-    LoadImages(strPathToSequence,vstrImageFilenames0,vstrImageFilenames1,vTimestamps);
+    vector<double> vTimestamps0,vTimestamps1;
+    LoadImages(strPathToSequence,vstrImageFilenames0,vstrImageFilenames1,vTimestamps0,vTimestamps1);
     ifstream imu_file_st(strPathImu.c_str());
     ifstream wheels_file_st(strPathWheels.c_str());
     ifstream gps_file_st(strPathGps.c_str());
@@ -144,7 +143,10 @@ int main(int argc, char** argv)
     double wheels_time=0,last_wheels_time=0;
     double gps_time=0;
     Eigen::Vector2d wheels_cnt;
-    for (size_t i = 0; i < vTimestamps.size(); i=i+3)//10916   图像时间戳间隔太低，会使IMU信息矩阵过大
+    vector<double> vTimestamps;
+    if(CAM_NUM==0)vTimestamps=vTimestamps0;//选择相机0还是相机1的时间戳
+    else vTimestamps=vTimestamps1;
+    for (size_t i = 0; i < vTimestamps.size(); i=i+3)//10916   图像时间戳间隔太低，会使IMU信息矩阵过大  0812序列起始为327
     {
         if(ros::ok())
         {
@@ -201,7 +203,7 @@ int main(int argc, char** argv)
 
             imLeft = cv::imread(leftImagePath, CV_LOAD_IMAGE_GRAYSCALE );
             imRight = cv::imread(rightImagePath, CV_LOAD_IMAGE_GRAYSCALE );
-            if(imLeft.empty() || imRight.empty())
+            if(imLeft.empty() && CAM_NUM==0 || imRight.empty()&&CAM_NUM==1)
             {
                 std::cout<<"!!!! file empty in place:"<<leftImagePath<<endl;
                 continue;
@@ -219,7 +221,10 @@ int main(int argc, char** argv)
             pubRightImage.publish(imRightMsg);
 
 //            continue;
-            estimator.inputImage(vTimestamps[i], imLeft);//时间戳 左目 右目
+            if(CAM_NUM==0)//选择使用相机0还是相机1 imLeft是相机0
+                estimator.inputImage(vTimestamps[i], imLeft);//时间戳 左目 右目
+            else
+                estimator.inputImage(vTimestamps[i], imRight);//时间戳 左目 右目
 
             Eigen::Vector3d vel_est;
             estimator.getVelInWorldFrame(vel_est);
@@ -271,7 +276,7 @@ int main(int argc, char** argv)
 
 void LoadImages(const string &strPathToSequence,
                 vector<string> &vstrImageFilenames0,vector<string> &vstrImageFilenames1,
-                vector<double> &vTimestamps)
+                vector<double> &vTimestamps0,vector<double> &vTimestamps1)
 {
     ifstream fTimes0,fTimes1;
     string strPathTimeFile0 = strPathToSequence + "/image_capturer_0/image_name.txt";//前视相机
@@ -290,12 +295,16 @@ void LoadImages(const string &strPathToSequence,
 
         if(!s0.empty() && !s1.empty())
         {
-            stringstream ss;
-            string timeStr=s0.substr(0,16);
-            ss << timeStr;
-            double t;
-            ss >> t;
-            vTimestamps.push_back(t);
+            stringstream ss0,ss1;
+            string timeStr0=s0.substr(0,16);
+            string timeStr1=s1.substr(0,16);
+            ss0 << timeStr0;
+            ss1 << timeStr1;
+            double t0,t1;
+            ss0 >> t0;
+            ss1 >> t1;
+            vTimestamps0.push_back(t0);
+            vTimestamps1.push_back(t1);
             imageNameList0.push_back(s0);
             imageNameList1.push_back(s1);// 会导致左右目帧号不匹配
 //            imageNameList1.push_back(s0);
@@ -307,24 +316,28 @@ void LoadImages(const string &strPathToSequence,
 
     string strPrefixLeft = strPathToSequence;
 
-    const int nTimes = vTimestamps.size();
-    vstrImageFilenames0.resize(nTimes);
-    vstrImageFilenames1.resize(nTimes);
+    const int nTimes0 = vTimestamps0.size();
+    const int nTimes1 = vTimestamps1.size();
+    vstrImageFilenames0.resize(nTimes0);
+    vstrImageFilenames1.resize(nTimes1);
 
 #if 1
-    for(int i=0; i<nTimes; i++)
+    for(int i=0; i<nTimes0; i++)
     {
 //        stringstream ss;
 //        ss << setfill('0') << setw(6) << i;
 //        vstrImageFilenames[i] = strPrefixLeft + ss.str() + ".png";
         vstrImageFilenames0[i]=strPrefixLeft+"/image_capturer_0/"+imageNameList0[i];
-        vstrImageFilenames1[i]=strPrefixLeft+"/image_capturer_1/"+imageNameList1[i];  //vstrImageFilenames0是slam帧
 //        cv::Mat left=cv::imread(vstrImageFilenames0[i],CV_LOAD_IMAGE_ANYDEPTH);
 //        cv::Mat left_rbg;
 //        cvtColor(left,left_rbg,CV_BayerBG2RGB,0);
 //        cv::imshow("left",left);
 //        cv::imshow("left_rbg",left_rbg);
 //        cv::waitKey(1);
+    }
+    for(int i=0; i<nTimes1; i++)
+    {
+        vstrImageFilenames1[i]=strPrefixLeft+"/image_capturer_1/"+imageNameList1[i];  //vstrImageFilenames0是slam帧
     }
 #endif
 

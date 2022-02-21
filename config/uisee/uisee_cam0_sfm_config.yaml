@@ -6,30 +6,35 @@ num_of_cam: 1
 wheels: 1
 have_vel_T_cam: 1  #是否有轮速计到相机的外参
 imu_factor: 2   #imu factor 选项 0:是自己的  1:是原始的  2:是encode
+cam_num: 0      #0是前视相机  1是后视相机
 
 imu_topic: "Imu"
 image0_topic: "/leftImage"
 image1_topic: "/rightImage"
-output_path: "/home/q/output/vins_data_out/"
+output_path: "/home/qcx/linux/output/newdata/"
 
 
-cam0_calib: "image_capturer_1.yaml"
+cam0_calib: "image_capturer_0.yaml"
 cam1_calib: "image_capturer_1.yaml"
 image_width: 1280
 image_height: 720
    
 # Extrinsic parameter between IMU and Camera.
-estimate_extrinsic: 1   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
                         # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
 
 body_T_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data:  [ 9.9818203561639529e-01, -3.4023903135478387e-03,-6.0175140322758058e-02, -9.8067999524864682e-02,
-            5.9801350847866301e-02, -6.8519683996411507e-02,9.9585583863418825e-01, -9.9764997585292017e-02,
-            -7.5114718584141128e-03, -9.9764396286710744e-01,-6.8191650114468150e-02, 7.0854106945505224e-01,
-            0., 0., 0., 1. ]
+   data: [ 9.9959712857721583e-01, -1.6494686930937801e-02,-2.3097745414552083e-02, -5.8860963065969024e-02,
+           2.1953663291805564e-02, -6.6462415374691775e-02,9.9754738434353707e-01, -2.1041602892675682e-01,
+           -1.7989363753483360e-02, -9.9765258113514277e-01,-6.6073520763862525e-02, 2.7563808909100901e-01,
+           0., 0., 0., 1. ]
+#   data:  [ 9.9818203561639529e-01, -3.4023903135478387e-03,-6.0175140322758058e-02, -9.8067999524864682e-02,
+#            5.9801350847866301e-02, -6.8519683996411507e-02,9.9585583863418825e-01, -9.9764997585292017e-02,
+#            -7.5114718584141128e-03, -9.9764396286710744e-01,-6.8191650114468150e-02, 7.0854106945505224e-01,
+#            0., 0., 0., 1. ]
 
 #  [ 9.9498731524000927e-01, -6.4687351776720053e-03,9.9791773091169933e-02, 1.3037927781909447e-01,
 #            -9.9994908920347680e-02, -5.3153812165683378e-02,9.9356715447032917e-01, -2.2684694973305650e-01,
@@ -62,9 +67,9 @@ vel_T_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [  0.99946, 0.00340907 ,-0.0326924 , 0.0933846,
-            0.0328094 ,-0.0432215 ,  0.998527 ,   1.10744,
-            0.00199103  , -0.99906  , -0.04331 ,   1.4,
+   data: [  0.99946, 0.00340907 ,-0.0326924 , -0.0032276,
+            0.0328094 ,-0.0432215 ,  0.998527 ,   1.19234,
+            0.00199103  , -0.99906  , -0.04331 ,   1.4091,
             0   ,       0 ,         0   ,       1 ]
 
 #Multiple thread support
@@ -79,10 +84,10 @@ show_track: 1           # publish tracking image as topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
 
 #optimization parameters
-max_solver_time: 0.08  # max solver itration time (s), to guarantee real time
-max_num_iterations: 10   # max solver itrations, to guarantee real time
+max_solver_time: 8  # max solver itration time (s), to guarantee real time
+max_num_iterations: 50   # max solver itrations, to guarantee real time
 keyframe_parallax: 3 # keyframe selection threshold (pixel)
-max_ang_vel: 100.0 #角速度阈值
+max_ang_vel: 5.0 #角速度阈值
 
 #imu parameters       The more accurate parameters you provide, the better performance
 acc_n: 0.1          # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -99,5 +104,5 @@ td: 0.0                             # initial value of time offset. unit: s. rea
 
 #loop closure parameters 自己加的
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
-pose_graph_save_path: "/home/q/output/vins_data_out/" # save and load path
+pose_graph_save_path: "/home/qcx/linux/output/newdata/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0

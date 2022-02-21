@@ -21,7 +21,7 @@
 using namespace std;
 
 const double FOCAL_LENGTH = 1280.0;
-const int WINDOW_SIZE = 20;
+const int WINDOW_SIZE = 10;
 const int NUM_OF_F = 1000;
 //#define UNIT_SPHERE_ERROR
 
@@ -50,6 +50,7 @@ extern std::string EX_CALIB_RESULT_PATH;
 extern std::string VINS_RESULT_PATH;
 extern std::string OUTPUT_FOLDER;
 extern std::string IMU_TOPIC;
+extern int CAM_NUM ;
 extern double TD;
 extern int ESTIMATE_TD;
 extern int ROLLING_SHUTTER;

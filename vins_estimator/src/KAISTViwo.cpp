@@ -137,7 +137,7 @@ int main(int argc, char** argv)
     double wheels_time=0,last_wheels_time=0;
     double gps_time=0;
     Eigen::Vector2d wheels_cnt;
-    for (size_t i = 0; i < vTimestamps.size(); i++)
+    for (size_t i = 0; i < vTimestamps.size(); i=i+1)
     {
         if(ros::ok())
         {
@@ -468,7 +468,7 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
         return false;
     }
     time_=0.5f*(time_now+time_last_);
-    time_=time_now;
+//    time_=time_now;
 //    std::cout<<"time_now="<<setprecision(17)<<time_now<<" mid="<<0.5*(time_now+time_last_)<<std::endl;
     time_last_=time_now;
     wheels=wheels_now;

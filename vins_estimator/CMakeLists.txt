@@ -81,5 +81,5 @@ add_executable(kaist_viwo src/KAISTViwo.cpp )
 target_link_libraries(kaist_viwo vins_lib_viwo)
 
 add_executable(uisee_viwo src/uiseeViwo.cpp )
-target_link_libraries(uisee_viwo vins_lib2)
+target_link_libraries(uisee_viwo vins_lib_viwo)
 
