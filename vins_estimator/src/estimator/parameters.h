@@ -73,6 +73,7 @@ extern int SHOW_TRACK;
 extern int FLOW_BACK;
 
 extern int IMU_FACTOR;// 0 是自己的  1 是原始的 2 是encode
+extern int SHOW_MESSAGE;// 是否显示信息
 
 void readParameters(std::string config_file);
 

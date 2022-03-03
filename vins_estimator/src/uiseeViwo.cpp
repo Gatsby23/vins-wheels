@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 
             Eigen::Vector3d vel_est;
             estimator.getVelInWorldFrame(vel_est);
-            std::cout<<"vel_estimator = "<<vel_est.transpose() <<"  norm= "<<vel_est.norm()<<std::endl;
+//            std::cout<<"vel_estimator = "<<vel_est.transpose() <<"  norm= "<<vel_est.norm()<<std::endl;
             Eigen::Matrix<double, 4, 4> pose;
             estimator.getPoseInWorldFrame(pose);
             Eigen::Quaterniond q_(pose.matrix().block<3,3>(0,0));

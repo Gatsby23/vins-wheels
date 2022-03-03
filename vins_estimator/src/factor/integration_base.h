@@ -420,8 +420,8 @@ class IntegrationBase
             F.block<3, 3>(9, 15) = 0.5 * result_delta_q.toRotationMatrix() * R_e_1_x * _dt * _dt;//对角度bias
 
 
-            F.block<3, 3>(12, 12) = Matrix3d::Identity();
-            F.block<3, 3>(15, 15) = Matrix3d::Identity();
+            F.block<3, 3>(12, 12) = Matrix3d::Identity();//delta bias_a_k
+            F.block<3, 3>(15, 15) = Matrix3d::Identity();//delta bias_b_k
 
             MatrixXd V = MatrixXd::Zero(18, 24);
             V.block<3, 3>(0, 0) =  0.25 * delta_q.toRotationMatrix() * _dt * _dt;

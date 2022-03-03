@@ -70,7 +70,7 @@ int main(int argc, char** argv)
     ros::Publisher pubImu = n.advertise<sensor_msgs::Imu>(IMU_TOPIC,1000);
     ros::Publisher gps_publisher=n.advertise<sensor_msgs::NavSatFix>("/gps/data_raw", 100, true);
     string strPathToSequence,strPathImu,strPathWheels,strPathGps;
-    if(argc==3)
+    if(argc>=3)
     {
         string basePath = argv[2];
         strPathToSequence=basePath+ "/image/";//图像地址
@@ -85,6 +85,15 @@ int main(int argc, char** argv)
         strPathWheels=argv[4];  //轮速计地址
         strPathGps=argv[5];  //GPS地址
     }
+    if(argc==4)
+    {
+        OUTPUT_FOLDER = argv[3];
+        VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";//因为这个路径是在parameter.cpp中赋值的，所以要重新赋值
+        std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
+        fout.close();
+    }
+    std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
+    fout.close();
     // load image list
     vector<string> vstrImageFilenames0;
     vector<string> vstrImageFilenames1;
@@ -155,20 +164,22 @@ int main(int argc, char** argv)
             double vel,ang_vel;
             if(last_wheels_time==0)
                 readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel);//先读一遍
-            cout<<"vel_time="<<setprecision(17)<<"  linearVel=   ";
+//            cout<<"vel_time="<<setprecision(17)<<"  linearVel=   ";
             while(wheels_time<imu_time)
             {
 //                    double last_wheels_time=wheels_time;
                     if(readWheels(wheels_file_st,wheels_time,last_wheels_time,wheels_cnt,vel,ang_vel))//文件流 时间 轮编码计数 轮速 角速度
                     {
 //                        cout<<setprecision(17)<<wheels_time<<"\tlinearVel="<<vel<<"\todomAngleVel= "<<ang_vel<<endl;
-                        cout<<setprecision(17)<<vel<<"  ";
+                        if(SHOW_MESSAGE)
+                            cout<<setprecision(17)<<vel<<"  ";
                         Eigen::Vector3d velVec(vel,0,0);
                         estimator.inputVEL(wheels_time, velVec, ang_vel);
                     }
                     else break;
             }
-            cout<<endl;
+            if(SHOW_MESSAGE)
+                cout<<endl;
             while(gps_time < imu_time)
             {
                 sensor_msgs::NavSatFix gps_msg;
@@ -178,7 +189,8 @@ int main(int argc, char** argv)
                 }
                 else break;
             }
-            printf("\nprocess image %d with time:%f\n", (int)i,vTimestamps[i]);
+            if(SHOW_MESSAGE)
+                printf("\nprocess image %d with time:%f\n", (int)i,vTimestamps[i]);
             leftImagePath = vstrImageFilenames0[i];
             rightImagePath = vstrImageFilenames1[i];
             //printf("%lu  %f \n", i, imageTimeList[i]);
@@ -209,7 +221,8 @@ int main(int argc, char** argv)
 
             Eigen::Vector3d vel_est;
             estimator.getVelInWorldFrame(vel_est);
-            std::cout<<"vel_estimator = "<<vel_est.transpose() <<"  norm= "<<vel_est.norm()<<std::endl;
+            if(SHOW_MESSAGE)
+                std::cout<<"vel_estimator = "<<vel_est.transpose() <<"  norm= "<<vel_est.norm()<<std::endl;
             Eigen::Matrix<double, 4, 4> pose;
             estimator.getPoseInWorldFrame(pose);
             Eigen::Quaterniond q_(pose.matrix().block<3,3>(0,0));

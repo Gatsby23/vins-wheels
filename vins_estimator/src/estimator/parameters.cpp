@@ -58,6 +58,7 @@ int SHOW_TRACK;
 int FLOW_BACK;
 
 int IMU_FACTOR;
+int SHOW_MESSAGE;// 是否显示信息
 
 
 template <typename T>
@@ -101,6 +102,7 @@ void readParameters(std::string config_file)
     FLOW_BACK = fsSettings["flow_back"];
     IMU_FACTOR = fsSettings["imu_factor"];
     CAM_NUM = fsSettings["cam_num"];
+    SHOW_MESSAGE = fsSettings["show_message"];
 
     MULTIPLE_THREAD = fsSettings["multiple_thread"];
 
@@ -128,8 +130,8 @@ void readParameters(std::string config_file)
     fsSettings["output_path"] >> OUTPUT_FOLDER;
     VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";
     std::cout << "result path " << VINS_RESULT_PATH << std::endl;
-    std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
-    fout.close();
+//    std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
+//    fout.close();
 
     ESTIMATE_EXTRINSIC = fsSettings["estimate_extrinsic"];
     have_vel_T_cam = fsSettings["have_vel_T_cam"];

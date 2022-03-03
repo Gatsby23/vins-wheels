@@ -220,7 +220,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             n_pts.clear();
         chrono::steady_clock::time_point t2_track = chrono::steady_clock::now();
         chrono::duration<double,milli> time_used_track  = chrono::duration_cast<chrono::duration<double,milli>>(t2_track - t1_track);
-        cout<<"track _time_used "<<time_used_track.count()<<"ms"<<endl;
+        if(SHOW_MESSAGE)
+            cout<<"track _time_used "<<time_used_track.count()<<"ms"<<endl;
         ROS_DEBUG("detect feature costs: %f ms", t_t.toc());
         for (auto &p : n_pts)//addPoints()向cur_pts添加新的追踪点
         {
