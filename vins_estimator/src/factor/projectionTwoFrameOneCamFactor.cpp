@@ -74,7 +74,12 @@ bool ProjectionTwoFrameOneCamFactor::Evaluate(double const *const *parameters, d
 #endif
 
     residual = sqrt_info * residual;
-//    std::cout<<"cam residual: "<<residual.transpose()<<std::endl;
+    if(0)//(SHOW_MESSAGE)
+    {
+        Eigen::Matrix3d PI;
+        PI<<8.1690378992770002e+02,0,6.0850726281690004e+02,0,8.1156803828490001e+02,2.6347599764440002e+02,0,0,1;
+        std::cout<<"cam residual: (res_x res_y) : "<<residual.transpose()<<" \tin :"<<(PI*pts_j_td).transpose()<<std::endl;
+    }
 
     if (jacobians)
     {

@@ -46,6 +46,8 @@ extern double BIAS_GYR_THRESHOLD;
 extern double SOLVER_TIME;
 extern int NUM_ITERATIONS;
 extern double MAX_ANGLE_VEL;//角速度阈值
+extern double MAX_CNT_1;//特征点误差小于1的阈值
+extern double MAX_ANGVEL_BIAS;//优化bias时的角速度阈值
 extern std::string EX_CALIB_RESULT_PATH;
 extern std::string VINS_RESULT_PATH;
 extern std::string OUTPUT_FOLDER;

@@ -1671,9 +1671,93 @@ void Estimator::optimization()
     ceres::Problem problem;//创建一个ceres Problem实例, loss_function定义为CauchyLoss.
     ceres::LossFunction *loss_function;
     //loss_function = NULL;
-    loss_function = new ceres::HuberLoss(1.0);
-    //loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
+    loss_function = new ceres::HuberLoss(5.0);
+//    loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
     //ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+    double cnt_1 = 0, cnt_5 = 0, cnt_large_5 = 0;
+    if(1){
+        cv::Mat imgTrack = featureTracker.getTrackImage();
+        int f_m_cnt = 0;
+        int feature_index = -1;
+        for (auto &it_per_id: f_manager.feature) {
+            it_per_id.used_num = it_per_id.feature_per_frame.size();
+            if (it_per_id.used_num < 4)
+                continue;
+            ++feature_index;
+            int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
+            Vector3d pts_i = it_per_id.feature_per_frame[0].point;
+            for (auto &it_per_frame: it_per_id.feature_per_frame) {
+                imu_j++;
+                if (imu_i != imu_j) {
+                    Vector3d pts_j = it_per_frame.point;
+                    Eigen::Vector3d tic(para_Ex_Pose[0][0], para_Ex_Pose[0][1], para_Ex_Pose[0][2]);//外参
+                    Eigen::Quaterniond qic(para_Ex_Pose[0][6], para_Ex_Pose[0][3], para_Ex_Pose[0][4], para_Ex_Pose[0][5]);
+                    Eigen::Vector3d Pi(para_Pose[imu_i][0], para_Pose[imu_i][1], para_Pose[imu_i][2]);
+                    Eigen::Quaterniond Qi(para_Pose[imu_i][6], para_Pose[imu_i][3], para_Pose[imu_i][4],
+                                          para_Pose[imu_i][5]);
+                    Eigen::Vector3d Pj(para_Pose[imu_j][0], para_Pose[imu_j][1], para_Pose[imu_j][2]);
+                    Eigen::Quaterniond Qj(para_Pose[imu_j][6], para_Pose[imu_j][3], para_Pose[imu_j][4],
+                                          para_Pose[imu_j][5]);
+                    double inv_dep_i = para_Feature[feature_index][0];
+                    double td = para_Td[0][0];
+                    Eigen::Vector3d velocity_i, velocity_j;
+                    velocity_i.x() = it_per_id.feature_per_frame[0].velocity.x();
+                    velocity_i.y() = it_per_id.feature_per_frame[0].velocity.y();
+                    velocity_i.z() = 0;
+                    velocity_j.x() = it_per_frame.velocity.x();
+                    velocity_j.y() = it_per_frame.velocity.y();
+                    velocity_j.z() = 0;
+                    double td_i = it_per_id.feature_per_frame[0].cur_td;
+                    double td_j = it_per_frame.cur_td;
+                    Eigen::Vector3d pts_i_td, pts_j_td;
+                    pts_i_td = pts_i - (td - td_i) * velocity_i;
+                    pts_j_td = pts_j - (td - td_j) * velocity_j;
+                    Eigen::Vector3d pts_camera_i = pts_i_td / inv_dep_i;
+                    Eigen::Vector3d pts_imu_i = qic * pts_camera_i + tic;
+                    Eigen::Vector3d pts_w = Qi * pts_imu_i + Pi;
+                    Eigen::Vector3d pts_imu_j = Qj.inverse() * (pts_w - Pj);
+                    Eigen::Vector3d pts_camera_j = qic.inverse() * (pts_imu_j - tic);
+                    Eigen::Vector2d residual;
+                    double dep_j = pts_camera_j.z();
+                    residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
+                    Eigen::Matrix3d PI;
+                    residual = ProjectionTwoFrameOneCamFactor::sqrt_info * residual;
+                    PI<< 8.1690378992770002e+02, 0, 6.0850726281690004e+02, 0, 8.1156803828490001e+02, 2.6347599764440002e+02, 0, 0, 1;
+                    if (SHOW_MESSAGE) {
+                        std::cout << "cam residual: (res_x res_y) : " << residual.transpose() << " \tin :"
+                                  << (PI * pts_j).transpose() << std::endl;
+                    }
+                    Eigen::Vector3d Pt = (PI * pts_j);
+                    double r = residual.norm();
+                    cv::Point2f rightPt;
+                    rightPt.x = int(Pt.x());
+                    rightPt.y = int(Pt.y());
+                    if (r < 1) {
+                        cv::circle(imgTrack, rightPt, 1, cv::Scalar(0, 255, 0), 2);
+                        cnt_1++;
+                    } else if (r < 5) {
+                        cv::circle(imgTrack, rightPt, r, cv::Scalar(0, 255, 255), 2);
+                        cnt_5++;
+                    } else {
+                        cnt_large_5++;
+                        cv::circle(imgTrack, rightPt, r, cv::Scalar(0, 0, 0), 2);
+                    }
+                }
+                f_m_cnt++;
+            }
+        }
+        if (1)//SHOW_MESSAGE)
+        {
+            cv::putText(imgTrack, "cnt_1: " + to_string(cnt_1), cv::Point2f(10, 30), CV_FONT_HERSHEY_SIMPLEX, 0.5,
+                        cv::Scalar(0, 0, 255));
+            cv::putText(imgTrack, "cnt_5: " + to_string(cnt_5), cv::Point2f(10, 45), CV_FONT_HERSHEY_SIMPLEX, 0.5,
+                        cv::Scalar(0, 0, 255));
+            cv::putText(imgTrack, "cnt_large_5: " + to_string(cnt_large_5), cv::Point2f(10, 60), CV_FONT_HERSHEY_SIMPLEX,
+                        0.5, cv::Scalar(0, 0, 255));
+            cv::imshow("imgTrack", imgTrack);
+            cv::waitKey(1);
+        }
+    }
 
     //加入优化变量  位姿 速度
     for (int i = 0; i < frame_count + 1; i++)
@@ -1745,7 +1829,16 @@ void Estimator::optimization()
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
                                          para_SpeedBias[j]);
             } else {
-                IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[j], show);
+                int angVEl = int( (fabs(pre_integrations[j]->delta_angleaxis.angle()*180.0f/M_PI/pre_integrations[j]->sum_dt)-MAX_ANGVEL_BIAS) );
+                int decrease = 0;
+                if(angVEl<2)
+                    decrease = int((cnt_1-MAX_CNT_1)/100)+angVEl;
+                else
+                    decrease = int((cnt_1-MAX_CNT_1)/100)+2;
+                if(decrease>0)
+                    decrease=0;
+                std::cout<<"decrease"<<decrease<<std::endl;
+                IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[j], show,decrease*2);
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
                                          para_SpeedBias[j]);
             }
@@ -1767,7 +1860,6 @@ void Estimator::optimization()
             problem.AddResidualBlock(wheels_factor, NULL,para_Pose[i], para_Pose[j]);
         }
     }
-
     int f_m_cnt = 0;
     int feature_index = -1;
     for (auto &it_per_id : f_manager.feature)

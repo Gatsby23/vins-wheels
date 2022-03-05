@@ -33,6 +33,8 @@ int NUM_ITERATIONS;
 int ESTIMATE_EXTRINSIC;
 int ESTIMATE_TD;
 double MAX_ANGLE_VEL;//角速度阈值
+double MAX_CNT_1;
+double MAX_ANGVEL_BIAS;
 int ROLLING_SHUTTER;
 std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
@@ -126,6 +128,8 @@ void readParameters(std::string config_file)
     MIN_PARALLAX = fsSettings["keyframe_parallax"];
     MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
     MAX_ANGLE_VEL = fsSettings["max_ang_vel"];
+    MAX_CNT_1 = fsSettings["max_cnt_1"];//优化bias时的特征点数量阈值
+    MAX_ANGVEL_BIAS = fsSettings["max_angvel_bias"];//优化bias时的角速度阈值
 
     fsSettings["output_path"] >> OUTPUT_FOLDER;
     VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";

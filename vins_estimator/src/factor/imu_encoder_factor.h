@@ -13,7 +13,7 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 {
   public:
     IMUEncoderFactor() = delete;
-    IMUEncoderFactor(IntegrationBase* _pre_integration,bool show_):pre_integration(_pre_integration),show(show_)
+    IMUEncoderFactor(IntegrationBase* _pre_integration,bool show_ ,double decrease_=0):pre_integration(_pre_integration),show(show_),decrease(decrease_)
     {
     }
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
@@ -61,8 +61,18 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
         residual = pre_integration->evaluate_encode(Pi, Qi, Vi, TIV[0], Quaterniond(RIV[0]), Bai, Bgi,
                                             Pj, Qj, Vj, TIV[0], Quaterniond(RIV[0]), Baj, Bgj);
         // ROS_INFO_STREAM("Residual of imu encoder factor: " << residual);
-
         Eigen::Matrix<double, 18, 18> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 18, 18>>(pre_integration->covariance_enc.inverse()).matrixL().transpose();
+        if(decrease!=0)
+        {
+            Eigen::Matrix<double, 18, 18> cov = pre_integration->covariance_enc;
+            cov.matrix().block<18,3>(0,12) = pow(10,decrease)*cov.matrix().block<18,3>(0,12);
+            cov.matrix().block<3,12>(12,0) = pow(10,decrease)*cov.matrix().block<3,12>(12,0);
+            if(SHOW_MESSAGE) {
+                std::cout << "decrease=" << decrease << "  " << pow(10, decrease) << std::endl;
+                std::cout << "cov\n" << cov << std::endl;
+            }
+            sqrt_info = Eigen::LLT<Eigen::Matrix<double, 18, 18>>(cov.inverse()).matrixL().transpose();
+        }
         //sqrt_info.setIdentity();
 //        std::cout<<"residual raw:\t"<<setprecision(6)<<residual.transpose()<<endl;
         Eigen::Matrix<double, 18, 1>residual_raw=residual;
@@ -76,9 +86,16 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
             if(show)
                 std::cout<<"---------------R is large than-----------------"<<MAX_ANGLE_VEL<<std::endl;
         }
+        bool estBias_a = true;
+        if(!estBias_a)
+        {
+            sqrt_info .matrix().block<18,3>(0,12).setZero();
+            sqrt_info .matrix().block<3,3>(0,15).setZero();
+        }
         residual = sqrt_info * residual;
         if (show) {
             std::cout << "sqrt_info\n" << sqrt_info << std::endl;
+            std::cout << "covariance_enc\n" << pre_integration->covariance_enc << std::endl;
             std::cout << "residual raw:\n" << setprecision(6) << residual_raw.transpose() << endl;
             std::cout << "res encoder:\n" << setprecision(6) << residual.transpose() << "\tnorm:"
                       << residual.transpose() * residual / 2 << endl;
@@ -135,13 +152,20 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                     std::cout <<  "unstable in jacobians \n sqrt_info \n"<<sqrt_info<<"\njacobian_pose_i\n"<<jacobian_pose_i<< std::endl;
                     //ROS_BREAK();
                 }
+                if(show)
+                {
+                    std::cout<<"jacobian_pose_i\n"<<jacobian_pose_i<<std::endl;
+                }
             }
             if (jacobians[1])
             {
                 Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[1]);
                 jacobian_speedbias_i.setZero();
                 jacobian_speedbias_i.block<3, 3>(0, 0) = -Qi.inverse().toRotationMatrix() * sum_dt;//O_P, O_V - O_V
-                jacobian_speedbias_i.block<3, 3>(0, 3) = -dp_dba;//O_P, O_BA - O_V---------------------ba
+                if(estBias_a)
+                {
+                    jacobian_speedbias_i.block<3, 3>(0, 3) = -dp_dba;//O_P, O_BA - O_V---------------------ba
+                }
                 jacobian_speedbias_i.block<3, 3>(0, 6) = -dp_dbg;//O_P, O_BG - O_V
 
 #if 0
@@ -153,16 +177,27 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 #endif
 
                 jacobian_speedbias_i.block<3, 3>(6, 0) = -Qi.inverse().toRotationMatrix();//O_V, O_V - O_V
-                jacobian_speedbias_i.block<3, 3>(6, 3) = -dv_dba;//O_V, O_BA - O_V---------------------ba
+                if(estBias_a){
+                    jacobian_speedbias_i.block<3, 3>(6, 3) = -dv_dba;//O_V, O_BA - O_V---------------------ba
+                }
                 jacobian_speedbias_i.block<3, 3>(6, 6) = -dv_dbg;//O_V, O_BG - O_V
+                jacobian_speedbias_i.block<3, 3>(9, 6) = -do_dbg;//O_P_Vel, O_BG - O_V
 
-                    jacobian_speedbias_i.block<3, 3>(9, 6) = -do_dbg;//O_P_Vel, O_BG - O_V
-
-                jacobian_speedbias_i.block<3, 3>(12, 3) = -Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
-
+                if(estBias_a) {
+                    jacobian_speedbias_i.block<3, 3>(12,3) = -Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
+                }
                 jacobian_speedbias_i.block<3, 3>(15, 6) = -Eigen::Matrix3d::Identity();//O_BG, O_BG - O_V
 
+                if(show)
+                {
+                    std::cout<<"jacobian_speedbias_i before\n"<<jacobian_speedbias_i<<std::endl;
+                }
                 jacobian_speedbias_i = sqrt_info * jacobian_speedbias_i;
+
+                if(show)
+                {
+                    std::cout<<"jacobian_speedbias_i\n"<<jacobian_speedbias_i<<std::endl;
+                }
 
                 //ROS_ASSERT(fabs(jacobian_speedbias_i.maxCoeff()) < 1e8);
                 //ROS_ASSERT(fabs(jacobian_speedbias_i.minCoeff()) < 1e8);
@@ -185,6 +220,10 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
 
                 jacobian_pose_j = sqrt_info * jacobian_pose_j;
 
+                if(show)
+                {
+                    std::cout<<"jacobian_pose_j\n"<<jacobian_pose_j<<std::endl;
+                }
                 //ROS_ASSERT(fabs(jacobian_pose_j.maxCoeff()) < 1e8);
                 //ROS_ASSERT(fabs(jacobian_pose_j.minCoeff()) < 1e8);
             }
@@ -194,15 +233,32 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
                 jacobian_speedbias_j.setZero();
 
                 jacobian_speedbias_j.block<3, 3>(6, 0) = Qi.inverse().toRotationMatrix();//O_V, O_V - O_V
-
-                jacobian_speedbias_j.block<3, 3>(12, 3) = Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
-
+                if(estBias_a)
+                {
+                    jacobian_speedbias_j.block<3, 3>(12, 3) = Eigen::Matrix3d::Identity();//O_BA, O_BA - O_V---------------------ba
+                }
                 jacobian_speedbias_j.block<3, 3>(15, 6) = Eigen::Matrix3d::Identity();//O_BG, O_BG - O_V
-
                 jacobian_speedbias_j = sqrt_info * jacobian_speedbias_j;
 
+                if(show)
+                {
+                    std::cout<<"jacobian_speedbias_j\n"<<jacobian_speedbias_j<<std::endl;
+                }
                 //ROS_ASSERT(fabs(jacobian_speedbias_j.maxCoeff()) < 1e8);
                 //ROS_ASSERT(fabs(jacobian_speedbias_j.minCoeff()) < 1e8);
+            }
+            if(0)//show)
+            {
+                Eigen::Map<Eigen::Matrix<double, 18, 7, Eigen::RowMajor>> jacobian_1(jacobians[0]);
+                Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_2(jacobians[1]);
+                Eigen::Map<Eigen::Matrix<double, 18, 7, Eigen::RowMajor>> jacobian_3(jacobians[2]);
+                Eigen::Map<Eigen::Matrix<double, 18, 9, Eigen::RowMajor>> jacobian_4(jacobians[3]);
+                Eigen::Matrix<double,18,32>jacobian_all;
+                jacobian_all.block<18, 7>(0,0)=jacobian_1;
+                jacobian_all.block<18, 9>(0,7)=jacobian_2;
+                jacobian_all.block<18, 7>(0,16)=jacobian_3;
+                jacobian_all.block<18, 9>(0,23)=jacobian_4;
+                std::cout<<"jacobian_all\n"<<jacobian_all<<std::endl;
             }
         }
 
@@ -393,5 +449,6 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
     //void checkJacobian(double **parameters);
     IntegrationBase* pre_integration;
     bool show;
+    double decrease;
 };
 

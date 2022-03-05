@@ -1,5 +1,5 @@
 #!/bin/bash
-pathWrite='/home/qcx/linux/output/20220301' #
+pathWrite='/home/qcx/linux/output/20220305/' #
 yamlPath_38_39='/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_cam0_viwo_38-39.yaml' #Example, it is necesary to change it by the dataset path
 yamlPath_18_37='/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_cam0_viwo_18-37.yaml' #Example, it is necesary to change it by the dataset path
 
@@ -7,12 +7,12 @@ yamlPath_18_37='/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/k
 echo "run cam_calib_data_2021-08-06-8--------------------------"
 #./mono_uisee ../../Vocabulary/ORBvoc.txt Uisee.yaml /media/qcx/LENOVO/ALINUX/dataset/Uisee/cam_calib_data_2021-08-06/dump_images/
 
-#echo "run kaist39----------------------"
-#./kaist_viwo "$yamlPath_38_39" /home/q_ftp/DataSet1/KAIST/kaist39/ "$pathWrite"/kaist39/
-#
-#echo "run kaist38 ---------------------------"
-#./kaist_viwo "$yamlPath_38_39" /home/q_ftp/DataSet1/KAIST/kaist38/urban38-pankyo/ "$pathWrite"/kaist38/
-#
+echo "run kaist39----------------------"
+./kaist_viwo "$yamlPath_38_39" /home/q_ftp/DataSet1/KAIST/kaist39/ "$pathWrite"/kaist39/
+
+echo "run kaist38 ---------------------------"
+./kaist_viwo "$yamlPath_38_39" /home/q_ftp/DataSet1/KAIST/kaist38/urban38-pankyo/ "$pathWrite"/kaist38/
+
 echo "run kaist28-----------------------------"
 ./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist28/urban28-pankyo/ "$pathWrite"/kaist28/
 
@@ -29,13 +29,13 @@ echo "---------------------run kaist25------------------------------"
 ./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist25/urban25-highway/ "$pathWrite"/kaist25/
 
 echo "---------------------run kaist26------------------------------"
-./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist26/urban26-dongtan/ "$pathWrite"/kaist26/
+#./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist26/urban26-dongtan/ "$pathWrite"/kaist26/
 
 echo "---------------------run kaist27------------------------------"
 ./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist27/urban27-dongtan/ "$pathWrite"/kaist27/
 
 echo "---------------------run kaist28------------------------------"
-./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist28/urban28-pankyo/ "$pathWrite"/kaist28/
+#./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist28/urban28-pankyo/ "$pathWrite"/kaist28/
 
 echo "---------------------run kaist29------------------------------"
 ./kaist_viwo "$yamlPath_18_37" /home/q_ftp/DataSet1/KAIST/kaist29/urban29-pankyo/ "$pathWrite"/kaist29/
