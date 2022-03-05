@@ -1671,7 +1671,7 @@ void Estimator::optimization()
     ceres::Problem problem;//创建一个ceres Problem实例, loss_function定义为CauchyLoss.
     ceres::LossFunction *loss_function;
     //loss_function = NULL;
-    loss_function = new ceres::HuberLoss(5.0);
+    loss_function = new ceres::HuberLoss(1.0);
 //    loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
     //ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
     double cnt_1 = 0, cnt_5 = 0, cnt_large_5 = 0;
@@ -1831,13 +1831,12 @@ void Estimator::optimization()
             } else {
                 int angVEl = int( (fabs(pre_integrations[j]->delta_angleaxis.angle()*180.0f/M_PI/pre_integrations[j]->sum_dt)-MAX_ANGVEL_BIAS) );
                 int decrease = 0;
-                if(angVEl<2)
-                    decrease = int((cnt_1-MAX_CNT_1)/100)+angVEl;
-                else
-                    decrease = int((cnt_1-MAX_CNT_1)/100)+2;
+                if(angVEl>0)
+                    angVEl=0;
+                decrease = int((cnt_1-MAX_CNT_1)/100)+angVEl;
                 if(decrease>0)
                     decrease=0;
-                std::cout<<"decrease"<<decrease<<std::endl;
+                std::cout<<"decrease:"<<decrease<<"\tangVEl:"<<angVEl<<std::endl;
                 IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[j], show,decrease*2);
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
                                          para_SpeedBias[j]);
