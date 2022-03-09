@@ -374,6 +374,13 @@ class IntegrationBase
         result_linearized_ba = linearized_ba;
         result_linearized_bg = linearized_bg;
 
+//        if(un_vel_1.norm() == 0) //TODO 这部分可以考虑从这里改进
+//        {
+//            result_delta_q = delta_q ;
+//            result_delta_p = delta_p ;
+//            result_delta_v = delta_v ;
+//        }
+
         if(update_jacobian)
         {
             Vector3d w_x = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
@@ -445,7 +452,8 @@ class IntegrationBase
 
             // step_jacobian_enc = F;
             // step_V_enc = V;
-
+//            if(vel_0.norm() == 0 && vel_1.norm() == 0 ) //TODO 轮速为0时降低噪声
+//                noise_enc.block<3, 3>(21, 21) = (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
             jacobian_enc = F * jacobian_enc;
             covariance_enc = F * covariance_enc * F.transpose() + V * noise_enc * V.transpose();
         }

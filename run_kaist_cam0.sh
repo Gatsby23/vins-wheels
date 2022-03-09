@@ -1,5 +1,5 @@
 #!/bin/bash
-pathWrite='/home/qcx/linux/output/20220305/' #
+pathWrite='/home/qcx/linux/output/20220306/' #
 yamlPath_38_39='/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_cam0_viwo_38-39.yaml' #Example, it is necesary to change it by the dataset path
 yamlPath_18_37='/home/q/linux/code/vins_fusion_ws/src/vins-fusion/config/kaist/kaist_cam0_viwo_18-37.yaml' #Example, it is necesary to change it by the dataset path
 

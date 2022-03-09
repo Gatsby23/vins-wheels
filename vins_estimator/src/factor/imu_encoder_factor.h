@@ -100,6 +100,8 @@ class IMUEncoderFactor : public ceres::SizedCostFunction<18, 7, 9, 7, 9>
             std::cout << "res encoder:\n" << setprecision(6) << residual.transpose() << "\tnorm:"
                       << residual.transpose() * residual / 2 << endl;
         }
+        if(pre_integration->sum_dt>11)
+            std::cout<<"time is large "<<std::endl;
         if (jacobians)
         {
             double sum_dt = pre_integration->sum_dt;

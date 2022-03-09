@@ -257,10 +257,20 @@ int main(int argc, char** argv)
                   <<"vVel: "<<vel;
             if(estimator.solver_flag==Estimator::SolverFlag::NON_LINEAR && estimator.pre_integrations[estimator.frame_count-1]->sum_dt>0)
             {
-                stateSave<<"\tangVel: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_angleaxis.angle()*180.0f/M_PI/estimator.pre_integrations[estimator.frame_count-1]->sum_dt
+                Eigen::Vector3d Euler = estimator.Rs[estimator.frame_count-1].eulerAngles(2,1,0);
+                stateSave
+//                        <<"\tangVel: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_angleaxis.angle()*180.0f/M_PI/estimator.pre_integrations[estimator.frame_count-1]->sum_dt
+                        <<"\tangVel: "<<gyr.z()*180.0f/M_PI
                         <<"\tpara_SpeedBias:v: "<<estimator.para_SpeedBias[estimator.frame_count-1][0]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][1]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][2]
                         <<"\tba: "<<estimator.para_SpeedBias[estimator.frame_count-1][3]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][4]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][5]
-                        <<"\tbg: "<<estimator.para_SpeedBias[estimator.frame_count-1][6]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][7]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][8]<<endl;
+//                        <<"\tbg: "<<estimator.para_SpeedBias[estimator.frame_count-1][6]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][7]<<","<<estimator.para_SpeedBias[estimator.frame_count-1][8]
+                        <<"\tbg: "<<estimator.Bgs[estimator.frame_count - 1].x()<<","<<estimator.Bgs[estimator.frame_count - 1].y()<<","<<estimator.Bgs[estimator.frame_count - 1].z()
+                        <<"\timuSum_t: "<<estimator.pre_integrations[estimator.frame_count-1]->sum_dt
+                        <<"\tdelta_p: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_p.x()<<","<<estimator.pre_integrations[estimator.frame_count-1]->delta_p.y()<<","<<estimator.pre_integrations[estimator.frame_count-1]->delta_p.z()
+                        <<"\tdelta_p_i_vel: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_p_i_vel.x()<<","<<estimator.pre_integrations[estimator.frame_count-1]->delta_p_i_vel.y()<<","<<estimator.pre_integrations[estimator.frame_count-1]->delta_p_i_vel.z()
+                        <<"\tdeltaAng: "<<estimator.pre_integrations[estimator.frame_count-1]->delta_angleaxis.angle()*180.0f/M_PI
+                        <<"\tEuler: "<<(Euler*180.0f/M_PI).x()<<","<<(Euler*180.0f/M_PI).y()<<","<<(Euler*180.0f/M_PI).z()
+                        <<endl;
             }
             else
                 stateSave<<endl;

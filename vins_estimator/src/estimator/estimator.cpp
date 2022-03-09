@@ -767,6 +767,11 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         // 3.预积分操作  是为了初始化的预积分
        // Eigen::Vector3d velVec=Eigen::Vector3d(vel,0,0);
         Eigen::Vector3d velVec=vel;
+        if(velVec.norm() == 0)
+        {
+            findBias( dt, angular_velocity);
+            std::cout<<"BiasCnt "<<BiasCnt<<"  BiasAverage "<<BiasAverage.transpose()<<std::endl;
+        }
         pre_integrations[frame_count]->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
 //        cout<<"pre_integrations vel_0 "<<pre_integrations[frame_count]->vel_0.transpose()<<endl;
 
@@ -1025,6 +1030,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         if(!USE_IMU)
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);//pnp求位姿
         f_manager.triangulate(frame_count, Ps, Rs, tic, ric);//三角化 depth
+//        std::cout<<"ps\n"
+//        <<Ps[0].transpose()<<"\n PS_1: "<<Ps[1].transpose()<<"\nPS_2: "<<Ps[2].transpose()<<"\nPS_3: "<<Ps[3].transpose()<<"\nPS_4:"<<Ps[4].transpose()<<"\nPS_5:"<<Ps[5].transpose()
+//        <<"\nPS_6:"<<Ps[6].transpose()<<"\nPS_7:"<<Ps[7].transpose()<<"\nPS_8:"<<Ps[8].transpose()<<"\nPS_9:"<<Ps[9].transpose()<<"\nPS_10:"<<Ps[10].transpose()<<"\n---------PS------------"<<std::endl;
         optimization();//优化_used
 //        writr_integrate_data(OUTPUT_FOLDER+"imu_int_after_opt.csv");
         set<int> removeIndex;
@@ -1577,6 +1585,13 @@ void Estimator::double2vector()
                                   para_SpeedBias[i][7],
                                   para_SpeedBias[i][8]);
 
+                if(BiasCnt>3000)
+                {
+                    double decreaseBias = 1e-3;
+//                    GYR_W =0.000001;//TODO 改成可调参数
+//Bgs[i] = 0.5*BiasAverage+0.5*Vector3d(para_SpeedBias[i][6], para_SpeedBias[i][7], para_SpeedBias[i][8]);
+                }
+
         }
     }
     else
@@ -1723,7 +1738,7 @@ void Estimator::optimization()
                     Eigen::Matrix3d PI;
                     residual = ProjectionTwoFrameOneCamFactor::sqrt_info * residual;
                     PI<< 8.1690378992770002e+02, 0, 6.0850726281690004e+02, 0, 8.1156803828490001e+02, 2.6347599764440002e+02, 0, 0, 1;
-                    if (SHOW_MESSAGE) {
+                    if (0) {
                         std::cout << "cam residual: (res_x res_y) : " << residual.transpose() << " \tin :"
                                   << (PI * pts_j).transpose() << std::endl;
                     }
@@ -1753,6 +1768,10 @@ void Estimator::optimization()
             cv::putText(imgTrack, "cnt_5: " + to_string(cnt_5), cv::Point2f(10, 45), CV_FONT_HERSHEY_SIMPLEX, 0.5,
                         cv::Scalar(0, 0, 255));
             cv::putText(imgTrack, "cnt_large_5: " + to_string(cnt_large_5), cv::Point2f(10, 60), CV_FONT_HERSHEY_SIMPLEX,
+                        0.5, cv::Scalar(0, 0, 255));
+            cv::putText(imgTrack, "inputImageCnt: " + to_string(inputImageCnt), cv::Point2f(10, 75), CV_FONT_HERSHEY_SIMPLEX,
+                        0.5, cv::Scalar(0, 0, 255));
+            cv::putText(imgTrack, "imuSumT: " + to_string(pre_integrations[0]->sum_dt), cv::Point2f(10, 90), CV_FONT_HERSHEY_SIMPLEX,
                         0.5, cv::Scalar(0, 0, 255));
             cv::imshow("imgTrack", imgTrack);
             cv::waitKey(1);
@@ -1810,16 +1829,18 @@ void Estimator::optimization()
         for (int i = 0; i < frame_count; i++)
         {
             int j = i + 1;
-            if (pre_integrations[j]->sum_dt > 10.0)
-                continue;
+//            if (pre_integrations[j]->sum_dt > 10.0)
+//                continue;
             if(SHOW_MESSAGE)
             {
                 std::cout<<"frame_count: "<<i<<"\t sumdt="<<setprecision(5)<<pre_integrations[j]->sum_dt
                          <<"\t pre del_p_vel="<<pre_integrations[j]->delta_p_i_vel.transpose()<<"\tdelta_v="<<pre_integrations[j]->delta_v.transpose()
                          <<"\tpos j:"<<para_Pose[j][0]<<"  "<<para_Pose[j][1]<<"  "<<para_Pose[j][2]<<endl;
+                std::cout << "covariance_enc_i\n" << pre_integrations[i]->covariance_enc << std::endl;
+                std::cout << "covariance_enc_j\n" << pre_integrations[j]->covariance_enc << std::endl;
             }
             bool show=false;
-            if(i==frame_count-1 && SHOW_MESSAGE) show = true;
+            if(i==frame_count-2 && SHOW_MESSAGE) show = true;
             if (IMU_FACTOR == 0) {
                 IMUFactor *imu_factor = new IMUFactor(pre_integrations[j], show);
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
@@ -1829,14 +1850,20 @@ void Estimator::optimization()
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
                                          para_SpeedBias[j]);
             } else {
-                int angVEl = int( (fabs(pre_integrations[j]->delta_angleaxis.angle()*180.0f/M_PI/pre_integrations[j]->sum_dt)-MAX_ANGVEL_BIAS) );
+                double wheelVel = 0;
+                double imuSumT = pre_integrations[j]->sum_dt;
+//                if(imuSumT>2)
+//                    continue;
+                int angVelOrigin = fabs(pre_integrations[j]->delta_angleaxis.angle()*180.0f/M_PI/pre_integrations[j]->sum_dt);
+                int angVElDif = int((fabs(pre_integrations[j]->delta_angleaxis.angle() * 180.0f / M_PI / pre_integrations[j]->sum_dt) - MAX_ANGVEL_BIAS) );
                 int decrease = 0;
-                if(angVEl>0)
-                    angVEl=0;
-                decrease = int((cnt_1-MAX_CNT_1)/100)+angVEl;
+                if(angVElDif < 1)
+                    decrease = int((cnt_1-MAX_CNT_1)/100) + angVElDif*2;
+                else
+                    decrease = int((cnt_1-MAX_CNT_1)/100)+2;
                 if(decrease>0)
                     decrease=0;
-                std::cout<<"decrease:"<<decrease<<"\tangVEl:"<<angVEl<<std::endl;
+//                std::cout<<"decrease:"<<decrease<<"\tangVEl:"<<angVElDif<<std::endl;
                 IMUEncoderFactor *imu_factor = new IMUEncoderFactor(pre_integrations[j], show,decrease*2);
                 problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j],
                                          para_SpeedBias[j]);
@@ -2622,13 +2649,23 @@ void Estimator::slideWindow()
 
             if(USE_IMU)
             {
+                double velNormal = 0;
                 for (unsigned int i = 0; i < dt_buf[frame_count].size(); i++)
+                {
+                    Vector3d tmp_vel_velocity = vel_velocity_buf[frame_count][i];
+                    velNormal = velNormal  + tmp_vel_velocity.norm();
+                }
+                if(inputImageCnt<500  || pre_integrations[frame_count - 1]->sum_dt<2)
+                    velNormal = 0;
+                for (unsigned int i = 0; i < dt_buf[frame_count].size() && velNormal==0; i++)
                 {
                     double tmp_dt = dt_buf[frame_count][i];
                     Vector3d tmp_linear_acceleration = linear_acceleration_buf[frame_count][i];
                     Vector3d tmp_angular_velocity = angular_velocity_buf[frame_count][i];
                     Vector3d tmp_vel_velocity = vel_velocity_buf[frame_count][i];
-
+//                    if(tmp_vel_velocity.norm() != 0)//轮速为0 舍弃  可以降低停车启动时的向下漂移
+//                        continue;
+                    //把次新帧去掉，保留最新帧，但是把次新帧的IMU信息留着，即在次新帧的基础上把当前帧IMU信息添加进去，使得IMU信息更新为最新帧的。
                     pre_integrations[frame_count - 1]->push_back_wheels(tmp_dt, tmp_linear_acceleration, tmp_angular_velocity,tmp_vel_velocity);
 
                     dt_buf[frame_count - 1].push_back(tmp_dt);
@@ -2847,4 +2884,11 @@ void Estimator::updateLatestStates()
         tmp_gyrBuf.pop();
     }
     mPropagate.unlock();
+}
+
+void Estimator::findBias(double dt, const Eigen::Vector3d &gyr)
+{
+    BiasCnt++;
+    BiasSum = BiasSum + gyr;
+    BiasAverage = BiasAverage*0.999 + gyr*0.001;
 }
