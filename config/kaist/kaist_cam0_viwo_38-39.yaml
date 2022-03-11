@@ -57,7 +57,12 @@ body_T_vel: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1.0 , 0.0 , 0.0 ,0.07,
+#   data: [ 0.999808,-0.0,-0.0195742,0.07,
+#           0,1.0,-0.0,0.0,
+#           0.0195742,0.0,0.999808,-1.7,
+#           0,0,0,1 ]
+
+   data: [1.0 , 0.0 , 0.0 ,0.07,  #原始的
           0.0 , 1.0 , 0.0, 0.0,
           0.0 , 0.0 , 1.0 ,-1.7,
           0,0,0,1]
@@ -134,12 +139,12 @@ max_angvel_bias: 0  #优化bias时的角速度阈值
 #enc_n: 0.2       # encoder readings noise standard deviation.
 
 #imu parameters       The more accurate parameters you provide, the better performance
-acc_n: 0.4          # accelerometer measurement noise standard deviation.
+acc_n: 0.1          # accelerometer measurement noise standard deviation.
 gyr_n: 0.01         # gyroscope measurement noise standard deviation.
-acc_w: 0.001        # accelerometer bias random work noise standard deviation.
+acc_w: 0.01        # accelerometer bias random work noise standard deviation.
 gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.
 g_norm: 9.81007     # gravity magnitude
-enc_n:  0.2     # encoder readings noise standard deviation.
+enc_n: 0.2       # encoder readings noise standard deviation.
 
 #unsynchronization parameters
 estimate_td: 0                      # online estimate time offset between camera and imu

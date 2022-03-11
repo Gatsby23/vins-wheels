@@ -88,7 +88,8 @@ class Estimator
                                      Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
                                      double depth, Vector3d &uvi, Vector3d &uvj);
     void updateLatestStates();
-    void findBias(double dt, const Eigen::Vector3d &gyr);
+    void findBias(double dt, const Eigen::Vector3d &gyr,const Eigen::Vector3d &acc);
+    Eigen::Vector3d toEuler(const Eigen::Matrix3d &R);
     void fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity);
     bool IMUAvailable(double t);
     bool WHEELSAvailable(double t);
@@ -208,5 +209,8 @@ class Estimator
 
     Eigen::Vector3d BiasAverage = Eigen::Vector3d::Zero();//静止时的bias均值
     Eigen::Vector3d BiasSum = Eigen::Vector3d::Zero();//静止时的bias总和
+    Eigen::Vector3d BiasAccSum = Eigen::Vector3d::Zero();//静止时的bias总和
+    Eigen::Matrix3d BiasR0 = Eigen::Matrix3d::Identity();//静止时的bias总和
     double BiasCnt = 0;//静止bias总数
+    double BiasAccCnt = 0;//静止bias总数
 };

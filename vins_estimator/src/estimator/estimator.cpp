@@ -769,8 +769,16 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         Eigen::Vector3d velVec=vel;
         if(velVec.norm() == 0)
         {
-            findBias( dt, angular_velocity);
-            std::cout<<"BiasCnt "<<BiasCnt<<"  BiasAverage "<<BiasAverage.transpose()<<std::endl;
+            findBias( dt, angular_velocity,linear_acceleration);
+            Eigen::Vector3d accAve = BiasAccSum/BiasAccCnt;
+            Eigen::Matrix3d R0 = Utility::g2R(accAve);//主要是为了做一个重力对齐
+            Eigen::Vector3d euler = toEuler(BiasR0)*180.0/M_PI;
+            std::cout<<"BiasCnt "<<BiasCnt<<"  BiasAverage "<<BiasAverage.transpose()<<"\tBiasAccCnt "<<BiasAccCnt<<" euler: "<<euler.transpose()<<std::endl;
+        }
+        else
+        {
+            BiasAccSum = Eigen::Vector3d::Zero();
+            BiasAccCnt = 0;
         }
         pre_integrations[frame_count]->push_back_wheels(dt, linear_acceleration, angular_velocity , velVec);
 //        cout<<"pre_integrations vel_0 "<<pre_integrations[frame_count]->vel_0.transpose()<<endl;
@@ -1580,6 +1588,7 @@ void Estimator::double2vector()
                 Bas[i] = Vector3d(para_SpeedBias[i][3],
                                   para_SpeedBias[i][4],
                                   para_SpeedBias[i][5]);
+                Bas[i].y() = 0;
 
                 Bgs[i] = Vector3d(para_SpeedBias[i][6],
                                   para_SpeedBias[i][7],
@@ -1589,6 +1598,7 @@ void Estimator::double2vector()
                 {
                     double decreaseBias = 1e-3;
 //                    GYR_W =0.000001;//TODO 改成可调参数
+//                    Bgs[i] = BiasAverage;
 //Bgs[i] = 0.5*BiasAverage+0.5*Vector3d(para_SpeedBias[i][6], para_SpeedBias[i][7], para_SpeedBias[i][8]);
                 }
 
@@ -1829,8 +1839,8 @@ void Estimator::optimization()
         for (int i = 0; i < frame_count; i++)
         {
             int j = i + 1;
-//            if (pre_integrations[j]->sum_dt > 10.0)
-//                continue;
+            if (pre_integrations[j]->sum_dt > 10.0)
+                continue;
             if(SHOW_MESSAGE)
             {
                 std::cout<<"frame_count: "<<i<<"\t sumdt="<<setprecision(5)<<pre_integrations[j]->sum_dt
@@ -2655,9 +2665,9 @@ void Estimator::slideWindow()
                     Vector3d tmp_vel_velocity = vel_velocity_buf[frame_count][i];
                     velNormal = velNormal  + tmp_vel_velocity.norm();
                 }
-                if(inputImageCnt<500  || pre_integrations[frame_count - 1]->sum_dt<2)
-                    velNormal = 0;
-                for (unsigned int i = 0; i < dt_buf[frame_count].size() && velNormal==0; i++)
+                if(1)//(inputImageCnt<500)
+                    velNormal = 1;
+                for (unsigned int i = 0; (i < dt_buf[frame_count].size()) && (velNormal!=0); i++)
                 {
                     double tmp_dt = dt_buf[frame_count][i];
                     Vector3d tmp_linear_acceleration = linear_acceleration_buf[frame_count][i];
@@ -2673,10 +2683,12 @@ void Estimator::slideWindow()
                     angular_velocity_buf[frame_count - 1].push_back(tmp_angular_velocity);
                     vel_velocity_buf[frame_count - 1].push_back(tmp_angular_velocity);
                 }
-
-                Vs[frame_count - 1] = Vs[frame_count];
-                Bas[frame_count - 1] = Bas[frame_count];
-                Bgs[frame_count - 1] = Bgs[frame_count];
+                if(velNormal!=0)
+                {
+                    Vs[frame_count - 1] = Vs[frame_count];
+                    Bas[frame_count - 1] = Bas[frame_count];
+                    Bgs[frame_count - 1] = Bgs[frame_count];
+                }
 
                 delete pre_integrations[WINDOW_SIZE];
                 pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, vel_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
@@ -2886,9 +2898,41 @@ void Estimator::updateLatestStates()
     mPropagate.unlock();
 }
 
-void Estimator::findBias(double dt, const Eigen::Vector3d &gyr)
+void Estimator::findBias(double dt, const Eigen::Vector3d &gyr,const Eigen::Vector3d &acc)
 {
     BiasCnt++;
+    BiasAccCnt++;
     BiasSum = BiasSum + gyr;
     BiasAverage = BiasAverage*0.999 + gyr*0.001;
+    BiasAccSum = BiasAccSum + acc;
+    BiasR0 = Utility::g2R(BiasAccSum/BiasAccCnt);//主要是为了做一个重力对齐
+}
+
+Eigen::Vector3d Estimator::toEuler(const Eigen::Matrix3d &R)
+{
+//    assert(isRotationMatrix(R));
+    float sy = sqrt(R(0,0) * R(0,0) +  R(1,0) * R(1,0) );
+
+    bool singular = sy < 1e-6; // If
+
+    float x, y, z;
+    if (!singular)
+    {
+        x = atan2(R(2,1) , R(2,2));
+        y = atan2(-R(2,0), sy);
+        z = atan2(R(1,0), R(0,0));
+    }
+    else
+    {
+        x = atan2(-R(1,2), R(1,1));
+        y = atan2(-R(2,0), sy);
+        z = 0;
+    }
+
+    Eigen::Vector3d v_euler;
+    v_euler.x() = x;
+    v_euler.y() = y;
+    v_euler.z() = z;
+
+    return v_euler;
 }

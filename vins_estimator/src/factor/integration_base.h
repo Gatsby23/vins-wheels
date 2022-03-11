@@ -435,17 +435,19 @@ class IntegrationBase
             V.block<3, 3>(0, 3) =  0.25 * -result_delta_q.toRotationMatrix() * R_a_1_x  * _dt * _dt * 0.5 * _dt;
             V.block<3, 3>(0, 9) =  0.25 * result_delta_q.toRotationMatrix() * _dt * _dt;
             V.block<3, 3>(0, 12) =  V.block<3, 3>(0, 3);
+
             V.block<3, 3>(3, 3) =  0.5 * MatrixXd::Identity(3,3) * _dt;
             V.block<3, 3>(3, 12) =  0.5 * MatrixXd::Identity(3,3) * _dt;
+
             V.block<3, 3>(6, 0) =  0.5 * delta_q.toRotationMatrix() * _dt;
             V.block<3, 3>(6, 3) =  0.5 * -result_delta_q.toRotationMatrix() * R_a_1_x  * _dt * 0.5 * _dt;
             V.block<3, 3>(6, 9) =  0.5 * result_delta_q.toRotationMatrix() * _dt;
             V.block<3, 3>(6, 12) =  V.block<3, 3>(6, 3);
 
-            V.block<3, 3>(9, 3) = 0.25 * -result_delta_q.toRotationMatrix() * R_e_1_x * _dt * _dt; // 相差-
-            V.block<3, 3>(9, 6) = 0.5 * delta_q.toRotationMatrix() * RIV[0] * _dt;
-            V.block<3, 3>(9, 12) = V.block<3, 3>(9, 3);
-            V.block<3, 3>(9, 15) = 0.5 * result_delta_q.toRotationMatrix() * RIV[0] * _dt;
+            V.block<3, 3>(9, 3) = -0.25 * result_delta_q.toRotationMatrix() * R_e_1_x * _dt * _dt; // 轮速-n_w_k
+            V.block<3, 3>(9, 6) = 0.5 * delta_q.toRotationMatrix() * RIV[0] * _dt;//vel - n_a
+            V.block<3, 3>(9, 12) = V.block<3, 3>(9, 3);//轮速-n_w_k+1
+            V.block<3, 3>(9, 15) = 0.5 * result_delta_q.toRotationMatrix() * RIV[0] * _dt;//vel_
 
             V.block<3, 3>(12, 18) = MatrixXd::Identity(3,3) * _dt;
             V.block<3, 3>(15, 21) = MatrixXd::Identity(3,3) * _dt;
