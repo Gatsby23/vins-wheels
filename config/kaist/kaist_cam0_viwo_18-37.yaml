@@ -117,7 +117,7 @@ max_angvel_bias: 0  #优化bias时的角速度阈值
 #g_norm: 9.81007     # gravity magnitude
 #enc_n: 0.2       # encoder readings noise standard deviation.
 
-#imu parameters  39rems7.7  windowsSize=15时rems=6.3   The more accurate parameters you provide, the better performance
+#imu parameters  39rems7.7  windowsSize=15时rems=6.3  max_ang_vel: 5.0 #角速度阈值  The more accurate parameters you provide, the better performance
 #acc_n: 0.4          # accelerometer measurement noise standard deviation.
 #gyr_n: 0.01         # gyroscope measurement noise standard deviation.
 #acc_w: 0.01        # accelerometer bias random work noise standard deviation.

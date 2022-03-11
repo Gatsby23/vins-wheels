@@ -1588,7 +1588,7 @@ void Estimator::double2vector()
                 Bas[i] = Vector3d(para_SpeedBias[i][3],
                                   para_SpeedBias[i][4],
                                   para_SpeedBias[i][5]);
-                Bas[i].y() = 0;
+//                Bas[i].y() = 0;
 
                 Bgs[i] = Vector3d(para_SpeedBias[i][6],
                                   para_SpeedBias[i][7],
