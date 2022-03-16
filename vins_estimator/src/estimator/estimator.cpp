@@ -805,6 +805,13 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
         // 5.采用的是中值积分的传播方式  这时是积分  IMU预积分出相机位姿先验
         Vector3d un_acc_0 = Rs[j] * (acc_0 - Bas[j]) - g;//滑动窗口的Rs[(WINDOW_SIZE + 1)];
         Vector3d un_gyr = 0.5 * (gyr_0 + angular_velocity) - Bgs[j];
+//        Eigen::Matrix3d delta_R_rpy=(Eigen::AngleAxisd(un_gyr(2)*dt,Eigen::Vector3d::UnitZ())
+//                                     *Eigen::AngleAxisd(un_gyr(1)*dt,Eigen::Vector3d::UnitY())
+//                                     *Eigen::AngleAxisd(un_gyr(0)*dt,Eigen::Vector3d::UnitX())).toRotationMatrix();
+//        Eigen::Quaterniond delta_q_normed =  Utility::deltaQ(un_gyr * dt);
+//        delta_q_normed.normalize();
+//        Rs[j] *= delta_q_normed.toRotationMatrix();
+//        Rs[j] *= delta_R_rpy;
         Rs[j] *= Utility::deltaQ(un_gyr * dt).toRotationMatrix();
         Vector3d un_acc_1 = Rs[j] * (linear_acceleration - Bas[j]) - g;
         Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);//有二阶龙格库塔的效果
@@ -1866,6 +1873,8 @@ void Estimator::optimization()
 //                    continue;
                 int angVelOrigin = fabs(pre_integrations[j]->delta_angleaxis.angle()*180.0f/M_PI/pre_integrations[j]->sum_dt);
                 int angVElDif = int((fabs(pre_integrations[j]->delta_angleaxis.angle() * 180.0f / M_PI / pre_integrations[j]->sum_dt) - MAX_ANGVEL_BIAS) );
+                Eigen::Vector3d EulerDelta = toEuler(pre_integrations[j]->delta_q.toRotationMatrix());
+                angVElDif = int((fabs(EulerDelta.z() * 180.0f / M_PI / pre_integrations[j]->sum_dt) - MAX_ANGVEL_BIAS) );
                 int decrease = 0;
                 if(angVElDif < 1)
                     decrease = int((cnt_1-MAX_CNT_1)/100) + angVElDif*2;

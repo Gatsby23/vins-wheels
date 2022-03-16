@@ -362,11 +362,23 @@ class IntegrationBase
         Vector3d un_acc_0 = delta_q * (_acc_0 - linearized_ba);
         Vector3d un_gyr = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
         Vector3d un_vel_0 = delta_q * RIV[0] * (_vel_0);//轮速
+//        Eigen::Matrix3d delta_R_rpy=(Eigen::AngleAxisd(un_gyr(2)*_dt,Eigen::Vector3d::UnitZ())
+//                                    *Eigen::AngleAxisd(un_gyr(1)*_dt,Eigen::Vector3d::UnitY())
+//                                    *Eigen::AngleAxisd(un_gyr(0)*_dt,Eigen::Vector3d::UnitX())).toRotationMatrix();
+//        Eigen::Quaterniond delta_q_rpy(delta_R_rpy);
+//        std::cout<<"delta_q_rpy\t"<<delta_q_rpy.coeffs().transpose()<<std::endl;
         result_delta_q = delta_q * Quaterniond(1, un_gyr(0) * _dt / 2, un_gyr(1) * _dt / 2, un_gyr(2) * _dt / 2);
+//        Eigen::Quaterniond delta_q_normed = result_delta_q;
+//        delta_q_normed.normalize();
+//        Eigen::Quaterniond delta_q_2 = delta_q * Quaterniond(1, un_gyr(0) * _dt / 4, un_gyr(1) * _dt / 4, un_gyr(2) * _dt / 4);;
+//        delta_q_2.normalize();
+//        std::cout<<"delta_q_rp2\t"<<delta_q_rpy.coeffs().transpose()<<std::endl;
+//        result_delta_q = delta_q * delta_q_rpy;
         Vector3d un_acc_1 = result_delta_q * (_acc_1 - linearized_ba);
         Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);
         Vector3d un_vel_1 = result_delta_q * RIV[0]* (_vel_1);//轮速
         Vector3d un_vel = 0.5 * (un_vel_0 + un_vel_1);
+//        un_vel = delta_q_2 * RIV[0]* (_vel_0);
 
         result_delta_p = delta_p + delta_v * _dt + 0.5 * un_acc * _dt * _dt;
         result_delta_v = delta_v + un_acc * _dt;
