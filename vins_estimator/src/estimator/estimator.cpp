@@ -1703,7 +1703,7 @@ void Estimator::optimization()
     ceres::Problem problem;//创建一个ceres Problem实例, loss_function定义为CauchyLoss.
     ceres::LossFunction *loss_function;
     //loss_function = NULL;
-    loss_function = new ceres::HuberLoss(1.0);
+    loss_function = new ceres::HuberLoss(5.0);
 //    loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
     //ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
     double cnt_1 = 0, cnt_5 = 0, cnt_large_5 = 0;
