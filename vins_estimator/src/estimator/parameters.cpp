@@ -8,7 +8,7 @@
  *******************************************************/
 
 #include "parameters.h"
-
+const double for_average_parallax = 1280;//代码里有一些460的参数做了修改
 double INIT_DEPTH;
 double MIN_PARALLAX;
 double ACC_N, ACC_W;

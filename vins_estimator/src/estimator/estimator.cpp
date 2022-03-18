@@ -773,7 +773,7 @@ void Estimator::processIMU_with_wheel(double t, double dt, const Vector3d &linea
             Eigen::Vector3d accAve = BiasAccSum/BiasAccCnt;
             Eigen::Matrix3d R0 = Utility::g2R(accAve);//主要是为了做一个重力对齐
             Eigen::Vector3d euler = toEuler(BiasR0)*180.0/M_PI;
-            std::cout<<"BiasCnt "<<BiasCnt<<"  BiasAverage "<<BiasAverage.transpose()<<"\tBiasAccCnt "<<BiasAccCnt<<" euler: "<<euler.transpose()<<std::endl;
+//            std::cout<<"BiasCnt "<<BiasCnt<<"  BiasAverage "<<BiasAverage.transpose()<<"\tBiasAccCnt "<<BiasAccCnt<<" euler: "<<euler.transpose()<<std::endl;
         }
         else
         {
@@ -1488,10 +1488,10 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 
             }
             average_parallax = 1.0 * sum_parallax / int(corres.size());
-            if(average_parallax * 460 > 30 && m_estimator.solveRelativeRT(corres, relative_R, relative_T))
+            if(average_parallax * for_average_parallax > 30 && m_estimator.solveRelativeRT(corres, relative_R, relative_T))
             {
                 l = i;
-                ROS_INFO("average_parallax %f choose l %d and newest frame to triangulate the whole structure", average_parallax * 460, l);
+                ROS_INFO("average_parallax %f choose l %d and newest frame to triangulate the whole structure", average_parallax * for_average_parallax, l);
                 return true;
             }
         }
@@ -1703,7 +1703,7 @@ void Estimator::optimization()
     ceres::Problem problem;//创建一个ceres Problem实例, loss_function定义为CauchyLoss.
     ceres::LossFunction *loss_function;
     //loss_function = NULL;
-    loss_function = new ceres::HuberLoss(5.0);
+    loss_function = new ceres::HuberLoss(1.0);
 //    loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
     //ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
     double cnt_1 = 0, cnt_5 = 0, cnt_large_5 = 0;
