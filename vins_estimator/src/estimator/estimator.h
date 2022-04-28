@@ -96,6 +96,7 @@ class Estimator
     void writr_imu_data(double time,double length_,Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);
     void writr_integrate_data(string path);
     void writr_ece(string path);
+    void writr_initPose(string path);//写初始化完成后的位姿
     //void writr_imu_data(Eigen::Vector3d acc_ori,Eigen::Vector3d acc_whithout_g,Eigen::Vector3d R_acc_);//自己写的 存储IMU数据
     void initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector);
 
@@ -213,4 +214,7 @@ class Estimator
     Eigen::Matrix3d BiasR0 = Eigen::Matrix3d::Identity();//静止时的bias总和
     double BiasCnt = 0;//静止bias总数
     double BiasAccCnt = 0;//静止bias总数
+
+    double first_image_time=0;
+    double init_end_image_time=0;
 };

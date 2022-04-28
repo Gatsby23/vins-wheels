@@ -172,7 +172,7 @@ void readParameters(std::string config_file)
             cv::cv2eigen(cv_T_vel_cam0, T_vel_cam0);
             T_vel=T*(T_vel_cam0.inverse());
         }
-        else
+        else if(USE_IMU==1)
         {
             fsSettings["body_T_vel"] >> cv_T_vel;
             cv::cv2eigen(cv_T_vel, T_vel);

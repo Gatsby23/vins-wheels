@@ -660,6 +660,28 @@ void Estimator::writr_ece(string path)
     }
 }
 
+void Estimator::writr_initPose(string path)
+{
+    // write result to file
+    ofstream foutC(path);//ios::app insert data from file end;
+    foutC.setf(ios::fixed, ios::floatfield);
+    foutC.precision(7);
+    for (int i = 0; i <= frame_count; i++)
+    {
+        Eigen::Quaterniond q = Quaterniond(Rs[i]);
+        foutC << Headers[i]<<" ";
+        foutC <<    Ps[i].x()<<" "
+              <<    Ps[i].y() << " "
+              <<    Ps[i].z()<< " "
+              <<    q.x()<<" "
+              <<    q.y()<<" "
+              <<    q.z()<<" "
+              <<    q.w()
+              << endl;
+    }
+    foutC.close();
+}
+
 
 void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector)
 {
@@ -940,12 +962,16 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 if(result)
                 {
                     initResult = true;
+                    string init_tum = OUTPUT_FOLDER + "/init_tum.txt";
+                    writr_initPose(init_tum);
+
                     ofstream stateSave(OUTPUT_FOLDER + "/init_state.txt");
 //                    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
                     stateSave<<fixed;
+                    stateSave.precision(6);
+                    stateSave << "init time used "<<Headers[frame_count]-first_image_time<<"\n";
                     for (int i = 0; i <= frame_count; i++)
                     {
-                        stateSave.precision(6);
                         stateSave <<"init before opt " <<i<< "\t";
                         stateSave.precision(5);
                         stateSave <<"Ps: "<<Ps[i].x() << ","<< Ps[i].y() << ","<< Ps[i].z() << "\t"
@@ -975,7 +1001,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                     ROS_INFO("Initialization finish!");
                 }
                 else
-                    slideWindow();
+                    slideWindow();//初始化的滑动窗口
             }
         }
 
@@ -1394,6 +1420,7 @@ bool Estimator::visualInitialAlign()//视觉惯性对齐
 {
     TicToc t_g;
     VectorXd x;
+    std::cout<<"g before VisualIMUAlignment"<<g.transpose()<<std::endl;
     //solve scale
     bool result = VisualIMUAlignment(all_image_frame, Bgs, g, x);
     if(!result)
@@ -1438,7 +1465,7 @@ bool Estimator::visualInitialAlign()//视觉惯性对齐
             std::cout<<"time= "<<setprecision(17)<<frame_i->first<<"\tVs[kv]="<<Vs[kv].transpose()<<std::endl;
         }
     }
-
+    std::cout<<"g before change state"<<g.transpose()<<std::endl;
     Matrix3d R0 = Utility::g2R(g);
     double yaw = Utility::R2ypr(R0 * Rs[0]).x();
     R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
@@ -1788,7 +1815,8 @@ void Estimator::optimization()
                         0.5, cv::Scalar(0, 0, 255));
             cv::putText(imgTrack, "inputImageCnt: " + to_string(inputImageCnt), cv::Point2f(10, 75), CV_FONT_HERSHEY_SIMPLEX,
                         0.5, cv::Scalar(0, 0, 255));
-            cv::putText(imgTrack, "imuSumT: " + to_string(pre_integrations[0]->sum_dt), cv::Point2f(10, 90), CV_FONT_HERSHEY_SIMPLEX,
+            if(USE_IMU)
+                cv::putText(imgTrack, "imuSumT: " + to_string(pre_integrations[0]->sum_dt), cv::Point2f(10, 90), CV_FONT_HERSHEY_SIMPLEX,
                         0.5, cv::Scalar(0, 0, 255));
             cv::imshow("imgTrack", imgTrack);
             cv::waitKey(1);

@@ -33,7 +33,8 @@ bool readImuFile(ifstream &imufile,double &time,
                  std::vector<std::vector<double>> &odom_ ,sensor_msgs::Imu &imuMsg);
 bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vector2d &wheels,
                 double &vel_,double &ang_vel_);//文件流 时间 轮编码计数 轮速 角速度
-bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg);
+int readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg);
+int readVrsGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg);
 Eigen::Vector3d toEuler(const Eigen::Matrix3d &R);
 
 Estimator estimator;
@@ -70,7 +71,7 @@ int main(int argc, char** argv)
     ros::Publisher pubRightImage = n.advertise<sensor_msgs::Image>(IMAGE1_TOPIC,1000);
     ros::Publisher pubImu = n.advertise<sensor_msgs::Imu>(IMU_TOPIC,1000);
     ros::Publisher gps_publisher=n.advertise<sensor_msgs::NavSatFix>("/gps/data_raw", 100, true);
-    string strPathToSequence,strPathImu,strPathWheels,strPathGps;
+    string strPathToSequence,strPathImu,strPathWheels,strPathGps,strPathVrsGps;
     if(argc>=3)
     {
         string basePath = argv[2];
@@ -78,6 +79,7 @@ int main(int argc, char** argv)
         strPathImu=basePath+ "/sensor_data/xsens_imu.csv";//imu 文件地址
         strPathWheels=basePath+ "/sensor_data/encoder.csv";  //轮速计地址
         strPathGps=basePath+ "/sensor_data/gps.csv";  //GPS地址
+        strPathVrsGps=basePath+ "/sensor_data/vrs_gps.csv";  //GPS地址
     }
     else
     {
@@ -103,6 +105,7 @@ int main(int argc, char** argv)
     ifstream imu_file_st(strPathImu.c_str());
     ifstream wheels_file_st(strPathWheels.c_str());
     ifstream gps_file_st(strPathGps.c_str());
+    ifstream vrsGps_file_st(strPathVrsGps.c_str());
 
 //	FILE* file;
 //	file = std::fopen((dataPath + "times.txt").c_str() , "r");
@@ -147,7 +150,8 @@ int main(int argc, char** argv)
     double wheels_time=0,last_wheels_time=0;
     double gps_time=0;
     Eigen::Vector2d wheels_cnt;
-    for (size_t i = 0; i < vTimestamps.size(); i=i+1)
+    int begin_i = 1500;
+    for (size_t i = begin_i; i < vTimestamps.size(); i=i+1)
     {
         if(ros::ok())
         {
@@ -184,11 +188,14 @@ int main(int argc, char** argv)
             while(gps_time < imu_time)
             {
                 sensor_msgs::NavSatFix gps_msg;
-                if(readGps(gps_file_st,gps_time,gps_msg))
+//                int state=readGps(gps_file_st,gps_time,gps_msg);
+                int state=readVrsGps(vrsGps_file_st,gps_time,gps_msg);
+                if(state==4)
                 {
                     gps_publisher.publish(gps_msg);
                 }
-                else break;
+                else if(state==0)
+                    break;
             }
             if(SHOW_MESSAGE)
                 printf("\nprocess image %d with time:%f\n", (int)i,vTimestamps[i]);
@@ -217,7 +224,7 @@ int main(int argc, char** argv)
             imRightMsg->header.stamp = ros::Time(vTimestamps[i]);
             pubRightImage.publish(imRightMsg);
 
-
+            if(i==begin_i) estimator.first_image_time = vTimestamps[i];
             estimator.inputImage(vTimestamps[i], imLeft);//时间戳 左目 右目
 
             Eigen::Vector3d vel_est;
@@ -234,6 +241,7 @@ int main(int argc, char** argv)
 
             if(estimator.initResult)
             {
+//                break;
                 estimator.initResult=false;
                 for (int j = 0; j < WINDOW_SIZE; j++)
                 {
@@ -517,18 +525,18 @@ bool readWheels(ifstream &wheelsFile,double &time_,double &time_last_,Eigen::Vec
     return true;
 }
 
-bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
+int readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
 {
     string FileGetline;
     if(!File.eof())
         std::getline(File,FileGetline);
     else{
         std::cout<<"END OF WHEELS FILE "<<std::endl;
-        return false;
+        return 0;
     }
     if(File.eof()){
         std::cout<<"END OF WHEELS FILE  publish odometer"<<std::endl;
-        return false;
+        return 0;
     }
 
     stringstream gps_ss(FileGetline);
@@ -538,6 +546,9 @@ bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
     {
         line_data_vec.push_back(value_str);
     }
+    int state = stod(line_data_vec[6]);//状态：1正常，2DGPS，4固定这个精度最高，5浮动
+    if(state<4)
+        return state;
     time_ = std::stod(line_data_vec[0])/1e9;
     ros::Time stamp(time_);
     gps_msg.header.stamp = stamp;
@@ -551,7 +562,48 @@ bool readGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
     {
         gps_msg.position_covariance[i] = std::stod(line_data_vec[i + 4]) / 50;
     }
-    return true;
+    return state;
+//    gps_publisher.publish(gps_msg);
+}
+
+int readVrsGps(ifstream &File,double &time_ , sensor_msgs::NavSatFix &gps_msg)
+{
+    string FileGetline;
+    if(!File.eof())
+        std::getline(File,FileGetline);
+    else{
+        std::cout<<"END OF WHEELS FILE "<<std::endl;
+        return 0;
+    }
+    if(File.eof()){
+        std::cout<<"END OF WHEELS FILE  publish odometer"<<std::endl;
+        return 0;
+    }
+
+    stringstream gps_ss(FileGetline);
+    vector<string>line_data_vec;
+    string value_str;
+    while (getline(gps_ss, value_str, ','))
+    {
+        line_data_vec.push_back(value_str);
+    }
+    int state = stod(line_data_vec[6]);//状态：1正常，2DGPS，4固定这个精度最高，5浮动
+    if(state<4)
+        return state;
+    time_ = std::stod(line_data_vec[0])/1e9;
+    ros::Time stamp(time_);
+    gps_msg.header.stamp = stamp;
+    gps_msg.header.frame_id = "gps_frame";
+    gps_msg.status.status = int(state);// sensor_msgs::NavSatStatus::STATUS_FIX; std::stoi(line_data_vec[1]);
+    gps_msg.status.service = stoi(line_data_vec[7]);//sensor_msgs::NavSatStatus::SERVICE_GPS;
+    gps_msg.latitude = std::stod(line_data_vec[1]);
+    gps_msg.longitude = std::stod(line_data_vec[2]);
+    gps_msg.altitude = std::stod(line_data_vec[5]);
+    for (int i = 0; i < 9; i++)
+    {
+        gps_msg.position_covariance[i] = 0;//std::stod(line_data_vec[i + 4]) / 50;
+    }
+    return state;
 //    gps_publisher.publish(gps_msg);
 }
 

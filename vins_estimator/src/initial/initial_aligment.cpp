@@ -444,9 +444,9 @@ bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs,
 {
     solveGyroscopeBias(all_image_frame, Bgs);//陀螺仪bias矫正
     double s;//尺度
-    solve_s(all_image_frame,s);//计算尺度
-    if(LinearAlignmentWithS(all_image_frame, g, x, s))////线性对准  LinearAlignment(all_image_frame, g, x)  LinearAlignmentWithS(all_image_frame, g, x, s)
-//    if(LinearAlignment(all_image_frame, g, x))
+//    solve_s(all_image_frame,s);//计算尺度
+//    if(LinearAlignmentWithS(all_image_frame, g, x, s))////线性对准  LinearAlignment(all_image_frame, g, x)  LinearAlignmentWithS(all_image_frame, g, x, s)
+    if(LinearAlignment(all_image_frame, g, x))
         return true;
     else 
         return false;

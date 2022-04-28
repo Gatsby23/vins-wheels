@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(global_fusion)
 
 set(CMAKE_BUILD_TYPE "Release")
+#set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_CXX_FLAGS "-std=c++11")
 #-DEIGEN_USE_MKL_ALL")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
@@ -30,4 +31,16 @@ add_executable(global_fusion_node
 	src/globalOptNode.cpp
 	src/globalOpt.cpp)
 
-target_link_libraries(global_fusion_node ${catkin_LIBRARIES} ${CERES_LIBRARIES} libGeographiccc) 
+target_link_libraries(global_fusion_node ${catkin_LIBRARIES} ${CERES_LIBRARIES} libGeographiccc)
+
+add_executable(global_fusion_readfile
+		src/globalOptReadFile.cpp
+		src/globalOpt.cpp)
+
+target_link_libraries(global_fusion_readfile ${catkin_LIBRARIES} ${CERES_LIBRARIES} libGeographiccc)
+
+add_executable(global_fusion_readuiseefile
+		src/globalOptReadUiseeFile.cpp
+		src/globalOpt.cpp)
+
+target_link_libraries(global_fusion_readuiseefile ${catkin_LIBRARIES} ${CERES_LIBRARIES} libGeographiccc)

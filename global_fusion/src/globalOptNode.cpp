@@ -24,13 +24,13 @@
 #include <queue>
 #include <mutex>
 
-GlobalOptimization globalEstimator;
+GlobalOptimization globalEstimator;//新建线程
 ros::Publisher pub_global_odometry, pub_global_path, pub_car;
 nav_msgs::Path *global_path;
 double last_vio_t = -1;
 std::queue<sensor_msgs::NavSatFixConstPtr> gpsQueue;
 std::mutex m_buf;
-
+std::string writePlace="";
 void publish_car_model(double t, Eigen::Vector3d t_w_car, Eigen::Quaterniond q_w_car)
 {
     visualization_msgs::MarkerArray markerArray_msg;
@@ -99,9 +99,10 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     {
         sensor_msgs::NavSatFixConstPtr GPS_msg = gpsQueue.front();
         double gps_t = GPS_msg->header.stamp.toSec();
-//        printf("vio t: %f, gps t: %f \n", t, gps_t);
+        printf("vio t: %f, gps t: %f  dif t: %f\n", t, gps_t,gps_t-t);
         // 10ms sync tolerance
-        if(gps_t >= t - 0.01 && gps_t <= t + 0.01)
+        double syncTime=0.05;
+        if(gps_t >= t - syncTime && gps_t <= t + syncTime)
         {
 //            printf("receive GPS with timestamp %f\n", GPS_msg->header.stamp.toSec());
             double latitude = GPS_msg->latitude;
@@ -117,9 +118,9 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
             gpsQueue.pop();
             break;
         }
-        else if(gps_t < t - 0.01)
+        else if(gps_t < t - syncTime)
             gpsQueue.pop();
-        else if(gps_t > t + 0.01)
+        else if(gps_t > t + syncTime)
             break;
     }
     m_buf.unlock();
@@ -145,7 +146,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 
 
     // write result to file
-    std::ofstream foutC("/home/q/robot/pose_saved/vio_global.csv", ios::app);
+    std::ofstream foutC("/home/q_ftp/DataSet2/newdata/globalopt/vio_global.csv", ios::app);
     foutC.setf(ios::fixed, ios::floatfield);
     foutC.precision(0);
     foutC << pose_msg->header.stamp.toSec() * 1e9 << ",";
@@ -166,6 +167,10 @@ int main(int argc, char **argv)
     ros::NodeHandle n("~");
 
     global_path = &globalEstimator.global_path;
+
+    ofstream stateSave;
+    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
+    stateSave<<fixed;
 
     ros::Subscriber sub_GPS = n.subscribe("/gps/data_raw", 100, GPS_callback);
     ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 100, vio_callback);
