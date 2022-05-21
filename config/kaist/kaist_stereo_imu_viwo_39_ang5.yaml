@@ -48,10 +48,10 @@ body_T_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [0.999993563047836,-0.001898691765710,0.003044475730350,4.815038111051128e+02,
-          0.001888303713281,0.999992398468884,0.003411350690774,1.117124984377098,
-          -0.003050929691139,-0.003405579837246,0.999989546872362,-5.031426420378582,
-         0,0,0,1]
+   data: [-0.00368263,-0.0119288,0.999902,1.70557,
+           -0.999986,-0.00157825,-0.00379534,-0.234079,
+           0.00163249, -0.99992,-0.0119286,-0.116161,
+           0,0,0,1.]
 
 body_T_vel: !!opencv-matrix
    rows: 4
@@ -123,27 +123,12 @@ max_angvel_bias: 0  #优化bias时的角速度阈值
 #enc_n: 0.2       # encoder readings noise standard deviation.
 
 #imu parameters  39rems7.7  windowsSize=15时rems=6.3   The more accurate parameters you provide, the better performance
-#acc_n: 0.1          # accelerometer measurement noise standard deviation.
-#gyr_n: 0.01         # gyroscope measurement noise standard deviation.
-#acc_w: 0.001        # accelerometer bias random work noise standard deviation.
-#gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.
-#g_norm: 9.81007     # gravity magnitude
-#enc_n: 0.2       # encoder readings noise standard deviation.
-
-#imu parameters  39rems7.7  windowsSize=15时rems=6.3   The more accurate parameters you provide, the better performance
-acc_n: 0.04          # accelerometer measurement noise standard deviation.
-gyr_n: 0.01679         # gyroscope measurement noise standard deviation.
-acc_w: 0.0036        # accelerometer bias random work noise standard deviation.
-gyr_w: 0.001414       # gyroscope bias random work noise standard deviation.
+acc_n: 0.1          # accelerometer measurement noise standard deviation.
+gyr_n: 0.01         # gyroscope measurement noise standard deviation.
+acc_w: 0.001        # accelerometer bias random work noise standard deviation.
+gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.
 g_norm: 9.81007     # gravity magnitude
 enc_n: 0.2       # encoder readings noise standard deviation.
-
-#acc_n: 0.04          # accelerometer measurement noise standard deviation.
-#gyr_n: 0.01679         # gyroscope measurement noise standard deviation.
-#acc_w: 0.0036        # accelerometer bias random work noise standard deviation.
-#gyr_w: 0.001414       # gyroscope bias random work noise standard deviation.
-#g_norm: 9.81007     # gravity magnitude
-#enc_n: 0.2       # encoder readings noise standard deviation.
 
 #imu parameters       The more accurate parameters you provide, the better performance
 #acc_n: 0.1          # accelerometer measurement noise standard deviation.

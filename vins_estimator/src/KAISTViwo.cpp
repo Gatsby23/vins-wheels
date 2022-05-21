@@ -150,7 +150,7 @@ int main(int argc, char** argv)
     double wheels_time=0,last_wheels_time=0;
     double gps_time=0;
     Eigen::Vector2d wheels_cnt;
-    int begin_i = 1500;
+    int begin_i = 0;
     for (size_t i = begin_i; i < vTimestamps.size(); i=i+1)
     {
         if(ros::ok())
