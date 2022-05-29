@@ -22,7 +22,7 @@ using namespace std;
 
 const double FOCAL_LENGTH = 1280.0;
 extern const double for_average_parallax;// = 1280;//代码里有一些460的参数做了修改
-const int WINDOW_SIZE = 10;
+const int WINDOW_SIZE = 15;
 const int NUM_OF_F = 1000;
 //#define UNIT_SPHERE_ERROR
 

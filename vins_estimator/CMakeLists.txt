@@ -56,26 +56,26 @@ target_link_libraries(vins_lib_viwo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_L
 
 
 add_executable(vins_node src/rosNodeTest.cpp)
-target_link_libraries(vins_node vins_lib2)
+target_link_libraries(vins_node vins_lib_viwo)
 
 add_executable(kitti_odom_test src/KITTIOdomTest.cpp)
-target_link_libraries(kitti_odom_test vins_lib2)
+target_link_libraries(kitti_odom_test vins_lib_viwo)
 
 add_executable(kitti_gps_test src/KITTIGPSTest.cpp)
 target_link_libraries(kitti_gps_test vins_lib_viwo)
 
 add_executable(kitti_sfm src/KITTISfm.cpp)
-target_link_libraries(kitti_sfm vins_lib2)
+target_link_libraries(kitti_sfm vins_lib_viwo)
 
 add_executable(nclt_sfm src/NCLTSfm.cpp)
-target_link_libraries(nclt_sfm vins_lib2)
+target_link_libraries(nclt_sfm vins_lib_viwo)
 
 add_executable(uisee_sfm src/uiseeSfm.cpp)
-target_link_libraries(uisee_sfm vins_lib2)
+target_link_libraries(uisee_sfm vins_lib_viwo)
 
 set(SOURCE_FILES src/KAISTSfm.cpp)
 add_executable(kaist_sfm ${SOURCE_FILES} )
-target_link_libraries(kaist_sfm vins_lib2)
+target_link_libraries(kaist_sfm vins_lib_viwo)
 
 add_executable(kaist_viwo src/KAISTViwo.cpp )
 target_link_libraries(kaist_viwo vins_lib_viwo)

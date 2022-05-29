@@ -196,13 +196,13 @@ int main(int argc, char **argv)
     string strPathSlam , strPathVrsGps;
     if(argc>=3)
     {
-        strPathSlam = argv[1];
-        strPathVrsGps=argv[2];
-        writePlace="global_tum.txt";
+        strPathSlam = argv[1]; //SLAM data
+        strPathVrsGps=argv[2]; // gps data
+        writePlace="global_tum.txt";//write
     }
     else if(argc==2)
     {
-        strPathSlam = argv[1];
+        strPathSlam = argv[1];//data folder
         strPathSlam=strPathSlam+"/vio_tum.txt";
         strPathVrsGps=argv[1];
         strPathVrsGps=strPathVrsGps+"/vrs_gps.csv";

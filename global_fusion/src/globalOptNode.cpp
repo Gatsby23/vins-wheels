@@ -168,9 +168,9 @@ int main(int argc, char **argv)
 
     global_path = &globalEstimator.global_path;
 
-    ofstream stateSave;
-    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
-    stateSave<<fixed;
+//    ofstream stateSave;
+//    stateSave.open((OUTPUT_FOLDER + "/state.txt").c_str() );
+//    stateSave<<fixed;
 
     ros::Subscriber sub_GPS = n.subscribe("/gps/data_raw", 100, GPS_callback);
     ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 100, vio_callback);

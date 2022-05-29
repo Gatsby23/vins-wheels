@@ -1818,7 +1818,9 @@ void Estimator::optimization()
             if(USE_IMU)
                 cv::putText(imgTrack, "imuSumT: " + to_string(pre_integrations[0]->sum_dt), cv::Point2f(10, 90), CV_FONT_HERSHEY_SIMPLEX,
                         0.5, cv::Scalar(0, 0, 255));
-            cv::imshow("imgTrack", imgTrack);
+            cv::Mat imgTrack_small;
+            cv::resize(imgTrack,imgTrack_small,cv::Size_<double>(imgTrack.cols/2,imgTrack.rows/2));
+            cv::imshow("imgTrack", imgTrack_small);
             cv::waitKey(1);
         }
     }
