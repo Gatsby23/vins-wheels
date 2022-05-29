@@ -5,7 +5,8 @@ This work is based on VINS-Fusion
 
 **Videos:**
 
-<a href="https://youtu.be/lcgBF64WMOE" target="_blank"></a>
+<a href="https://youtu.be/lcgBF64WMOE" target="_blank"><img src="http://img.youtube.com/vi/lcgBF64WMOE/0.jpg" 
+alt="VINS" width="320" height="240" border="10" /></a>
 
 ## 1. Prerequisites
 ### 1.1 **Ubuntu** and **ROS**
